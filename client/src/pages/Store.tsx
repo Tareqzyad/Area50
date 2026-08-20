@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Minus, Plus, ShoppingBag, Sparkles, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -19,6 +19,10 @@ export default function Store() {
   const [activeCategory, setActiveCategory] = useState<number | "all">("all");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState<number | null>(null);
+  const [orderForm, setOrderForm] = useState({ customerName: "", customerPhone: "", customerAddress: "", notes: "" });
+  const createOrder = trpc.store.orders.create.useMutation();
 
   const categories = (categoriesQuery.data ?? []) as StoreCategory[];
   const products = (productsQuery.data ?? []) as StoreProduct[];
@@ -45,6 +49,24 @@ export default function Store() {
       const nextQuantity = Math.min(item.quantity + delta, item.stock);
       return nextQuantity <= 0 ? [] : [{ ...item, quantity: nextQuantity }];
     }));
+  }
+
+  function submitOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (cart.length === 0) return toast.error("السلة فارغة");
+    createOrder.mutate({
+      ...orderForm,
+      items: cart.map(item => ({ productId: item.id, quantity: item.quantity })),
+    }, {
+      onSuccess: order => {
+        setCart([]);
+        setCheckoutOpen(false);
+        setOrderSuccess(order?.id ?? null);
+        setOrderForm({ customerName: "", customerPhone: "", customerAddress: "", notes: "" });
+        toast.success("تم إرسال طلبك إلى Area Store");
+      },
+      onError: error => toast.error(error.message || "تعذر إرسال الطلب"),
+    });
   }
 
   return (
@@ -78,8 +100,8 @@ export default function Store() {
       {cartOpen && <div className="store-cart-backdrop" onClick={() => setCartOpen(false)} />}
       <aside className={`store-cart-drawer ${cartOpen ? "is-open" : ""}`} aria-label="سلة المشتريات">
         <div className="store-cart-drawer__head"><div><span className="eyebrow"><span>{cartCount}</span> YOUR BAG</span><h2>سلة المشتريات</h2></div><button onClick={() => setCartOpen(false)} aria-label="إغلاق السلة"><ChevronDown size={20} /></button></div>
-        {cart.length === 0 ? <div className="store-cart-empty"><ShoppingBag size={30} /><p>السلة فارغة حالياً.</p><span>أضف المنتجات التي تعجبك من الكتالوج.</span></div> : <><div className="store-cart-list">{cart.map(item => <div className="store-cart-item" key={item.id}><img src={item.imageUrl} alt="" /><div><strong>{item.name}</strong><span>{formatPrice(item.price, item.currency)}</span><div className="store-cart-quantity"><button onClick={() => updateQuantity(item.id, -1)}><Minus size={13} /></button><b>{item.quantity}</b><button onClick={() => updateQuantity(item.id, 1)} disabled={item.quantity >= item.stock} title={item.quantity >= item.stock ? "وصلت إلى الحد المتوفر" : "زيادة الكمية"}><Plus size={13} /></button><button className="store-cart-remove" onClick={() => setCart(current => current.filter(entry => entry.id !== item.id))}><Trash2 size={14} /></button></div></div></div>)}</div><div className="store-cart-summary"><span>المجموع التقريبي</span><strong>{formatPrice(cartTotal)}</strong><button onClick={() => toast.info("قريباً: سيتم ربط الطلبات بواتساب أو الدفع الإلكتروني من لوحة الإدارة.")}>إرسال الطلب <ArrowLeft size={16} /></button></div></>}
-      </aside>
+        {cart.length === 0 ? <div className="store-cart-empty"><ShoppingBag size={30} /><p>السلة فارغة حالياً.</p><span>أضف المنتجات التي تعجبك من الكتالوج.</span></div> : <><div className="store-cart-list">{cart.map(item => <div className="store-cart-item" key={item.id}><img src={item.imageUrl} alt="" /><div><strong>{item.name}</strong><span>{formatPrice(item.price, item.currency)}</span><div className="store-cart-quantity"><button onClick={() => updateQuantity(item.id, -1)}><Minus size={13} /></button><b>{item.quantity}</b><button onClick={() => updateQuantity(item.id, 1)} disabled={item.quantity >= item.stock} title={item.quantity >= item.stock ? "وصلت إلى الحد المتوفر" : "زيادة الكمية"}><Plus size={13} /></button><button className="store-cart-remove" onClick={() => setCart(current => current.filter(entry => entry.id !== item.id))}><Trash2 size={14} /></button></div></div></div>)}</div><div className="store-cart-summary"><span>المجموع التقريبي</span><strong>{formatPrice(cartTotal)}</strong><button onClick={() => setCheckoutOpen(true)}>إرسال الطلب <ArrowLeft size={16} /></button></div>{checkoutOpen && <form className="store-order-form" onSubmit={submitOrder}><div className="store-order-form__heading"><span className="eyebrow"><span>CHECKOUT</span> AREA STORE</span><h3>بيانات الاستلام</h3><p>اكتب بياناتك حتى يظهر الطلب داخل لوحة الإدارة ونتواصل وياك للتأكيد.</p></div><label>الاسم الكامل<input required minLength={2} maxLength={180} value={orderForm.customerName} onChange={event => setOrderForm(form => ({ ...form, customerName: event.target.value }))} placeholder="اسمك الكامل" /></label><label>رقم الهاتف<input required minLength={7} maxLength={50} value={orderForm.customerPhone} onChange={event => setOrderForm(form => ({ ...form, customerPhone: event.target.value }))} placeholder="07xxxxxxxxx" dir="ltr" /></label><label>العنوان أو مكان الاستلام<textarea required minLength={3} maxLength={1000} value={orderForm.customerAddress} onChange={event => setOrderForm(form => ({ ...form, customerAddress: event.target.value }))} placeholder="المنطقة / العنوان" /></label><label>ملاحظات إضافية <span>(اختياري)</span><textarea maxLength={1000} value={orderForm.notes} onChange={event => setOrderForm(form => ({ ...form, notes: event.target.value }))} placeholder="أي ملاحظة على الطلب" /></label><div className="store-order-form__actions"><button type="button" onClick={() => setCheckoutOpen(false)}>رجوع</button><button type="submit" disabled={createOrder.isPending}>{createOrder.isPending ? "جارٍ الإرسال..." : "تأكيد إرسال الطلب"} <ArrowLeft size={16} /></button></div></form>}</>}
+      </aside>{orderSuccess && <div className="store-order-success"><Check size={22} /><div><strong>وصل طلبك بنجاح</strong><span>رقم الطلب: #{orderSuccess}. راح نتواصل وياك لتأكيد التفاصيل.</span></div><button onClick={() => setOrderSuccess(null)} aria-label="إغلاق رسالة نجاح الطلب"><ChevronDown size={18} /></button></div>}
     </div>
   );
 }

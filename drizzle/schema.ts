@@ -57,6 +57,28 @@ export const storeProducts = mysqlTable("storeProducts", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const storeOrders = mysqlTable("storeOrders", {
+  id: int("id").autoincrement().primaryKey(),
+  customerName: varchar("customerName", { length: 180 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 50 }).notNull(),
+  customerAddress: text("customerAddress").notNull(),
+  notes: text("notes"),
+  totalAmount: int("totalAmount").notNull(),
+  currency: varchar("currency", { length: 8 }).default("IQD").notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const storeOrderItems = mysqlTable("storeOrderItems", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  productId: int("productId"),
+  productName: varchar("productName", { length: 180 }).notNull(),
+  price: int("price").notNull(),
+  quantity: int("quantity").notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Booking = typeof bookings.$inferSelect;
@@ -67,3 +89,7 @@ export type StoreCategory = typeof storeCategories.$inferSelect;
 export type InsertStoreCategory = typeof storeCategories.$inferInsert;
 export type StoreProduct = typeof storeProducts.$inferSelect;
 export type InsertStoreProduct = typeof storeProducts.$inferInsert;
+export type StoreOrder = typeof storeOrders.$inferSelect;
+export type InsertStoreOrder = typeof storeOrders.$inferInsert;
+export type StoreOrderItem = typeof storeOrderItems.$inferSelect;
+export type InsertStoreOrderItem = typeof storeOrderItems.$inferInsert;

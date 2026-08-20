@@ -48430,6 +48430,26 @@ var storeProducts = mysqlTable("storeProducts", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull()
 });
+var storeOrders = mysqlTable("storeOrders", {
+  id: int2("id").autoincrement().primaryKey(),
+  customerName: varchar("customerName", { length: 180 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 50 }).notNull(),
+  customerAddress: text("customerAddress").notNull(),
+  notes: text("notes"),
+  totalAmount: int2("totalAmount").notNull(),
+  currency: varchar("currency", { length: 8 }).default("IQD").notNull(),
+  status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull()
+});
+var storeOrderItems = mysqlTable("storeOrderItems", {
+  id: int2("id").autoincrement().primaryKey(),
+  orderId: int2("orderId").notNull(),
+  productId: int2("productId"),
+  productName: varchar("productName", { length: 180 }).notNull(),
+  price: int2("price").notNull(),
+  quantity: int2("quantity").notNull()
+});
 
 // server/db.ts
 var _db = null;
@@ -48635,6 +48655,64 @@ async function deleteStoreProduct(id) {
   await db.delete(storeProducts).where(eq(storeProducts.id, id));
   return { success: true };
 }
+async function createStoreOrder(data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (data.items.length === 0) throw new Error("Cart is empty");
+  return db.transaction(async (tx) => {
+    const trustedItems = [];
+    for (const item of data.items) {
+      const [product] = await tx.select().from(storeProducts).where(eq(storeProducts.id, item.productId)).limit(1);
+      if (!product || !product.isAvailable || product.stock < item.quantity) {
+        throw new Error(`Product ${item.productId} is unavailable or out of stock`);
+      }
+      trustedItems.push({ productId: product.id, productName: product.name, price: product.price, quantity: item.quantity });
+    }
+    const totalAmount = trustedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const [orderResult] = await tx.insert(storeOrders).values({
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerAddress: data.customerAddress,
+      notes: data.notes || "",
+      totalAmount,
+      currency: "IQD",
+      status: "pending"
+    });
+    const orderId = Number(orderResult.insertId);
+    for (const item of trustedItems) {
+      await tx.update(storeProducts).set({ stock: sql`${storeProducts.stock} - ${item.quantity}` }).where(and(eq(storeProducts.id, item.productId), gte(storeProducts.stock, item.quantity)));
+    }
+    await tx.insert(storeOrderItems).values(trustedItems.map((item) => ({ ...item, orderId })));
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).limit(1);
+    const items = await tx.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId));
+    return order ? { ...order, items } : null;
+  });
+}
+async function getStoreOrderById(orderId) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [order] = await db.select().from(storeOrders).where(eq(storeOrders.id, orderId)).limit(1);
+  if (!order) return null;
+  const items = await db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId));
+  return { ...order, items };
+}
+async function getStoreOrdersList() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const orders = await db.select().from(storeOrders).orderBy(desc(storeOrders.createdAt));
+  const results = [];
+  for (const order of orders) {
+    const items = await db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, order.id));
+    results.push({ ...order, items });
+  }
+  return results;
+}
+async function updateStoreOrderStatus(orderId, status) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeOrders).set({ status }).where(eq(storeOrders.id, orderId));
+  return getStoreOrderById(orderId);
+}
 
 // server/storage.ts
 function getForgeConfig() {
@@ -48685,6 +48763,7 @@ async function storagePut(relKey, data, contentType = "application/octet-stream"
 // server/routers.ts
 var roomSchema = external_exports.enum(["vip", "vvip"]);
 var statusSchema = external_exports.enum(["pending", "confirmed", "cancelled"]);
+var orderStatusSchema = external_exports.enum(["pending", "confirmed", "completed", "cancelled"]);
 var toneSchema = external_exports.enum(["cyan", "lime", "violet", "amber"]);
 var imageTypeSchema = external_exports.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 var adminSessionProcedure = publicProcedure.use(async ({ ctx, next }) => {
@@ -48743,6 +48822,25 @@ var appRouter = router({
     }),
     products: router({
       list: publicProcedure.query(() => listStoreProducts())
+    }),
+    orders: router({
+      create: publicProcedure.input(external_exports.object({
+        customerName: external_exports.string().trim().min(2).max(180),
+        customerPhone: external_exports.string().trim().min(7).max(50),
+        customerAddress: external_exports.string().trim().min(3).max(1e3),
+        notes: external_exports.string().trim().max(1e3).optional().default(""),
+        items: external_exports.array(external_exports.object({ productId: external_exports.number().int().positive(), quantity: external_exports.number().int().min(1).max(100) })).min(1).max(50)
+      }).superRefine((input, ctx) => {
+        const ids = input.items.map((item) => item.productId);
+        if (new Set(ids).size !== ids.length) ctx.addIssue({ code: external_exports.ZodIssueCode.custom, message: "\u0644\u0627 \u062A\u0643\u0631\u0631 \u0627\u0644\u0645\u0646\u062A\u062C \u0641\u064A \u0627\u0644\u0637\u0644\u0628" });
+      })).mutation(async ({ input }) => {
+        try {
+          return await createStoreOrder(input);
+        } catch (error46) {
+          const message2 = error46 instanceof Error ? error46.message : "\u062A\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0637\u0644\u0628";
+          throw new TRPCError({ code: "BAD_REQUEST", message: message2.includes("unavailable") || message2.includes("empty") ? "\u0623\u062D\u062F \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u063A\u064A\u0631 \u0645\u062A\u0648\u0641\u0631 \u0623\u0648 \u0623\u0646 \u0627\u0644\u0633\u0644\u0629 \u0641\u0627\u0631\u063A\u0629" : "\u062A\u0639\u0630\u0631 \u062D\u0641\u0638 \u0627\u0644\u0637\u0644\u0628 \u062D\u0627\u0644\u064A\u0627\u064B" });
+        }
+      })
     })
   }),
   admin: router({
@@ -48778,6 +48876,10 @@ var appRouter = router({
         create: adminSessionProcedure.input(productInput).mutation(({ input }) => createStoreProduct(input)),
         update: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), data: productInput })).mutation(({ input }) => updateStoreProduct(input.id, input.data)),
         delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteStoreProduct(input.id))
+      }),
+      orders: router({
+        list: adminSessionProcedure.query(() => getStoreOrdersList()),
+        updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: orderStatusSchema })).mutation(({ input }) => updateStoreOrderStatus(input.id, input.status))
       }),
       uploadImage: adminSessionProcedure.input(external_exports.object({ fileName: external_exports.string().trim().min(1).max(180), contentType: imageTypeSchema, base64: external_exports.string().min(1).max(7e6) })).mutation(async ({ input }) => {
         const rawBase64 = input.base64.replace(/^data:[^;]+;base64,/, "");

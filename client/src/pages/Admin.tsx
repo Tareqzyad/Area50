@@ -29,6 +29,7 @@ import { trpc } from "@/lib/trpc";
 
 const roomLabels = { vip: "VIP Room", vvip: "VVIP Room" } as const;
 const statusLabels = { pending: "قيد المراجعة", confirmed: "مؤكد", cancelled: "ملغى" } as const;
+const storeOrderStatusLabels = { pending: "جديد", confirmed: "تم التأكيد", completed: "مكتمل", cancelled: "ملغى" } as const;
 const toneOptions = [
   { value: "cyan", label: "سماوي" },
   { value: "lime", label: "لايم" },
@@ -57,6 +58,20 @@ type Product = {
   stock: number;
   createdAt: Date;
   updatedAt: Date;
+};
+
+type StoreOrderStatus = keyof typeof storeOrderStatusLabels;
+type StoreOrder = {
+  id: number;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  notes: string | null;
+  totalAmount: number;
+  currency: string;
+  status: StoreOrderStatus;
+  createdAt: Date;
+  items: Array<{ id: number; productId: number | null; productName: string; price: number; quantity: number }>;
 };
 
 function formatBookingDate(value: string) {
@@ -96,6 +111,7 @@ export default function Admin() {
   const prices = trpc.admin.prices.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const categories = trpc.admin.store.categories.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const products = trpc.admin.store.products.list.useQuery(undefined, { enabled: isAdmin, retry: false });
+  const storeOrders = trpc.admin.store.orders.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const logout = trpc.admin.logout.useMutation({
     onSuccess: async () => {
       await utils.admin.me.invalidate();
@@ -113,6 +129,13 @@ export default function Admin() {
     onSuccess: async () => {
       await Promise.all([utils.admin.prices.list.invalidate(), utils.prices.list.invalidate()]);
       toast.success("تم حفظ السعر");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const updateStoreOrderStatus = trpc.admin.store.orders.updateStatus.useMutation({
+    onSuccess: async () => {
+      await utils.admin.store.orders.list.invalidate();
+      toast.success("تم تحديث حالة طلب المتجر");
     },
     onError: error => toast.error(error.message),
   });
@@ -146,11 +169,14 @@ export default function Admin() {
       prices={prices.data ?? []}
       categories={(categories.data ?? []) as Category[]}
       products={(products.data ?? []) as Product[]}
+      orders={(storeOrders.data ?? []) as StoreOrder[]}
       onLogout={() => logout.mutate()}
       updatingStatus={updateStatus.isPending}
       onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
       updatingPrice={updatePrice.isPending}
       onPriceSave={(room, pricePerHour) => updatePrice.mutate({ room, pricePerHour })}
+      updatingOrderStatus={updateStoreOrderStatus.isPending}
+      onOrderStatusChange={(id, status) => updateStoreOrderStatus.mutate({ id, status })}
     />
   );
 }
@@ -160,14 +186,17 @@ type AdminDashboardProps = {
   prices: Array<{ room: "vip" | "vvip"; pricePerHour: number; currency: string }>;
   categories: Category[];
   products: Product[];
+  orders: StoreOrder[];
   onLogout: () => void;
   updatingStatus: boolean;
   onStatusChange: (id: number, status: "pending" | "confirmed" | "cancelled") => void;
   updatingPrice: boolean;
   onPriceSave: (room: "vip" | "vvip", pricePerHour: number) => void;
+  updatingOrderStatus: boolean;
+  onOrderStatusChange: (id: number, status: StoreOrderStatus) => void;
 };
 
-function AdminDashboard({ bookings, prices, categories, products, onLogout, updatingStatus, onStatusChange, updatingPrice, onPriceSave }: AdminDashboardProps) {
+function AdminDashboard({ bookings, prices, categories, products, orders, onLogout, updatingStatus, onStatusChange, updatingPrice, onPriceSave, updatingOrderStatus, onOrderStatusChange }: AdminDashboardProps) {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     setPriceDrafts(Object.fromEntries(prices.map(price => [price.room, String(price.pricePerHour)])));
@@ -203,6 +232,7 @@ function AdminDashboard({ bookings, prices, categories, products, onLogout, upda
       </section>
 
       <StoreManagement categories={categories} products={products} />
+      <StoreOrdersManagement orders={orders} updating={updatingOrderStatus} onStatusChange={onOrderStatusChange} />
 
       <section className="admin-panel" aria-labelledby="bookings-title">
         <div className="admin-panel-heading"><div><span className="admin-eyebrow">03 / BOOKING INBOX</span><h2 id="bookings-title">طلبات الحجز</h2></div><button className="admin-refresh" onClick={() => window.location.reload()}><RefreshCw size={16} /> تحديث</button></div>
@@ -301,6 +331,19 @@ function StoreManagement({ categories, products }: { categories: Category[]; pro
         <div className="admin-products-table-heading"><div><h3>المنتجات الحالية</h3><span>{products.length} منتجات محفوظة</span></div><button className="admin-refresh" type="button" onClick={() => window.location.reload()}><RefreshCw size={15} /> تحديث</button></div>
         {products.length === 0 ? <div className="admin-empty"><p>لا توجد منتجات بعد.</p><span>أضف أول منتج من النموذج أعلاه.</span></div> : <div className="admin-products-table">{products.map(product => <article className={`admin-product-row ${product.isAvailable ? "" : "is-hidden"}`} key={product.id}><img src={product.imageUrl} alt="" /><div className="admin-product-info"><strong>{product.name}</strong><span>{categoryLabel(product.categoryId)} · {product.price.toLocaleString("ar-IQ")} {product.currency} · المخزون {product.stock}</span><small>{product.description || "بدون وصف"}</small></div><span className={`admin-availability ${product.isAvailable ? "is-available" : "is-hidden"}`}>{product.isAvailable ? <><Eye size={14} /> ظاهر</> : <><EyeOff size={14} /> مخفي</>}</span><div className="admin-product-actions"><button type="button" title="تعديل المنتج" onClick={() => editProduct(product)}><Pencil size={16} /></button><button type="button" title="حذف المنتج" onClick={() => removeProduct(product.id)}><Trash2 size={16} /></button></div></article>)}</div>}
       </div>
+    </section>
+  );
+}
+
+function StoreOrdersManagement({ orders, updating, onStatusChange }: { orders: StoreOrder[]; updating: boolean; onStatusChange: (id: number, status: StoreOrderStatus) => void }) {
+  return (
+    <section className="admin-panel admin-orders-panel" aria-labelledby="store-orders-title">
+      <div className="admin-panel-heading"><div><span className="admin-eyebrow">03 / STORE INBOX</span><h2 id="store-orders-title">طلبات المتجر</h2></div><div className="admin-orders-heading-meta"><span>{orders.length} طلب محفوظ</span><button className="admin-refresh" type="button" onClick={() => window.location.reload()}><RefreshCw size={15} /> تحديث</button></div></div>
+      {orders.length === 0 ? <div className="admin-empty"><p>لا توجد طلبات متجر حتى الآن.</p><span>طلبات الزبائن ستظهر هنا بعد إرسالها من السلة.</span></div> : <div className="admin-store-orders-list">{orders.map(order => <article className={`admin-store-order-row admin-store-order-row--${order.status}`} key={order.id}>
+        <div className="admin-store-order-top"><div><strong>طلب #{String(order.id).padStart(4, "0")}</strong><small>{formatCreatedAt(order.createdAt)}</small></div><span className={`admin-status admin-status--${order.status}`}>{storeOrderStatusLabels[order.status]}</span></div>
+        <div className="admin-store-order-grid"><div className="admin-store-order-customer"><h3>{order.customerName}</h3><p dir="ltr">{order.customerPhone}</p><p>{order.customerAddress}</p>{order.notes && <small>ملاحظة: {order.notes}</small>}</div><div className="admin-store-order-items">{order.items.map(item => <div key={item.id}><span>{item.productName} × {item.quantity}</span><strong>{(item.price * item.quantity).toLocaleString("ar-IQ")} {order.currency}</strong></div>)}<div className="admin-store-order-total"><span>الإجمالي</span><strong>{order.totalAmount.toLocaleString("ar-IQ")} {order.currency}</strong></div></div></div>
+        <div className="admin-store-order-actions"><label>تحديث الحالة<select value={order.status} onChange={event => onStatusChange(order.id, event.target.value as StoreOrderStatus)} disabled={updating}>{Object.entries(storeOrderStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>
+      </article>)}</div>}
     </section>
   );
 }

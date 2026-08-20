@@ -16,6 +16,9 @@ const dbMocks = vi.hoisted(() => ({
   createStoreProduct: vi.fn().mockResolvedValue({ id: 2 }),
   updateStoreProduct: vi.fn().mockResolvedValue({ id: 1 }),
   deleteStoreProduct: vi.fn().mockResolvedValue({ success: true }),
+  createStoreOrder: vi.fn().mockResolvedValue({ id: 7, status: "pending", totalAmount: 25000, items: [] }),
+  getStoreOrdersList: vi.fn().mockResolvedValue([]),
+  updateStoreOrderStatus: vi.fn().mockResolvedValue({ id: 7, status: "confirmed" }),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -45,6 +48,18 @@ describe("public store procedures", () => {
     expect(dbMocks.listStoreCategories).toHaveBeenCalled();
     expect(dbMocks.listStoreProducts).toHaveBeenCalled();
   });
+
+  it("creates an order with customer details and cart item ids", async () => {
+    const caller = appRouter.createCaller(publicContext);
+    await caller.store.orders.create({ customerName: "زبون Area", customerPhone: "07700000000", customerAddress: "بغداد", notes: "اتصل قبل التوصيل", items: [{ productId: 1, quantity: 2 }] });
+    expect(dbMocks.createStoreOrder).toHaveBeenCalledWith({ customerName: "زبون Area", customerPhone: "07700000000", customerAddress: "بغداد", notes: "اتصل قبل التوصيل", items: [{ productId: 1, quantity: 2 }] });
+  });
+
+  it("rejects duplicate product lines", async () => {
+    const caller = appRouter.createCaller(publicContext);
+    await expect(caller.store.orders.create({ customerName: "زبون Area", customerPhone: "07700000000", customerAddress: "بغداد", items: [{ productId: 1, quantity: 1 }, { productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.createStoreOrder).not.toHaveBeenCalledWith(expect.objectContaining({ items: [{ productId: 1, quantity: 1 }, { productId: 1, quantity: 1 }] }));
+  });
 });
 
 describe("admin store procedures", () => {
@@ -73,5 +88,20 @@ describe("admin store procedures", () => {
     const caller = appRouter.createCaller(adminContext());
     await expect(caller.admin.store.products.create({ categoryId: 1, name: "x", description: "", price: -1, imageUrl: "", isAvailable: 1, stock: 1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(dbMocks.createStoreProduct).not.toHaveBeenCalledWith(expect.objectContaining({ price: -1 }));
+  });
+
+  it("lists store orders and updates their status for admins", async () => {
+    const caller = appRouter.createCaller(adminContext());
+    await caller.admin.store.orders.list();
+    await caller.admin.store.orders.updateStatus({ id: 7, status: "confirmed" });
+    expect(dbMocks.getStoreOrdersList).toHaveBeenCalled();
+    expect(dbMocks.updateStoreOrderStatus).toHaveBeenCalledWith(7, "confirmed");
+  });
+
+  it("rejects store order management without an admin session", async () => {
+    dbMocks.getStoreOrdersList.mockClear();
+    const caller = appRouter.createCaller(publicContext);
+    await expect(caller.admin.store.orders.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(dbMocks.getStoreOrdersList).not.toHaveBeenCalledWith();
   });
 });

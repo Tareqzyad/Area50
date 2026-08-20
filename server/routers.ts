@@ -13,16 +13,19 @@ import {
 } from "./adminAuth";
 import {
   createBooking,
+  createStoreOrder,
   createStoreCategory,
   createStoreProduct,
   deleteStoreCategory,
   deleteStoreProduct,
+  getStoreOrdersList,
   listBookings,
   listRoomPrices,
   listStoreCategories,
   listStoreProducts,
   updateBookingStatus,
   updateRoomPrice,
+  updateStoreOrderStatus,
   updateStoreCategory,
   updateStoreProduct,
 } from "./db";
@@ -30,6 +33,7 @@ import { storagePut } from "./storage";
 
 const roomSchema = z.enum(["vip", "vvip"]);
 const statusSchema = z.enum(["pending", "confirmed", "cancelled"]);
+const orderStatusSchema = z.enum(["pending", "confirmed", "completed", "cancelled"]);
 const toneSchema = z.enum(["cyan", "lime", "violet", "amber"]);
 const imageTypeSchema = z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -99,6 +103,27 @@ export const appRouter = router({
     products: router({
       list: publicProcedure.query(() => listStoreProducts()),
     }),
+    orders: router({
+      create: publicProcedure
+        .input(z.object({
+          customerName: z.string().trim().min(2).max(180),
+          customerPhone: z.string().trim().min(7).max(50),
+          customerAddress: z.string().trim().min(3).max(1000),
+          notes: z.string().trim().max(1000).optional().default(""),
+          items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(100) })).min(1).max(50),
+        }).superRefine((input, ctx) => {
+          const ids = input.items.map(item => item.productId);
+          if (new Set(ids).size !== ids.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "لا تكرر المنتج في الطلب" });
+        }))
+        .mutation(async ({ input }) => {
+          try {
+            return await createStoreOrder(input);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "تعذر إنشاء الطلب";
+            throw new TRPCError({ code: "BAD_REQUEST", message: message.includes("unavailable") || message.includes("empty") ? "أحد المنتجات غير متوفر أو أن السلة فارغة" : "تعذر حفظ الطلب حالياً" });
+          }
+        }),
+    }),
   }),
 
   admin: router({
@@ -148,6 +173,12 @@ export const appRouter = router({
         delete: adminSessionProcedure
           .input(z.object({ id: z.number().int().positive() }))
           .mutation(({ input }) => deleteStoreProduct(input.id)),
+      }),
+      orders: router({
+        list: adminSessionProcedure.query(() => getStoreOrdersList()),
+        updateStatus: adminSessionProcedure
+          .input(z.object({ id: z.number().int().positive(), status: orderStatusSchema }))
+          .mutation(({ input }) => updateStoreOrderStatus(input.id, input.status)),
       }),
       uploadImage: adminSessionProcedure
         .input(z.object({ fileName: z.string().trim().min(1).max(180), contentType: imageTypeSchema, base64: z.string().min(1).max(7_000_000) }))

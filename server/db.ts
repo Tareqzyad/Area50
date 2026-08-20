@@ -12,9 +12,11 @@ import {
   storeProducts,
   StoreCategory,
   StoreProduct,
+  storeOrders,
+  storeOrderItems,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -254,4 +256,79 @@ export async function deleteStoreProduct(id: number) {
   if (!db) throw new Error("Database not available");
   await db.delete(storeProducts).where(eq(storeProducts.id, id));
   return { success: true };
+}
+
+
+export async function createStoreOrder(data: {
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  notes?: string;
+  items: Array<{ productId: number; quantity: number }>;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (data.items.length === 0) throw new Error("Cart is empty");
+
+  return db.transaction(async tx => {
+    const trustedItems: Array<{ productId: number; productName: string; price: number; quantity: number }> = [];
+    for (const item of data.items) {
+      const [product] = await tx.select().from(storeProducts).where(eq(storeProducts.id, item.productId)).limit(1);
+      if (!product || !product.isAvailable || product.stock < item.quantity) {
+        throw new Error(`Product ${item.productId} is unavailable or out of stock`);
+      }
+      trustedItems.push({ productId: product.id, productName: product.name, price: product.price, quantity: item.quantity });
+    }
+
+    const totalAmount = trustedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const [orderResult] = await tx.insert(storeOrders).values({
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerAddress: data.customerAddress,
+      notes: data.notes || "",
+      totalAmount,
+      currency: "IQD",
+      status: "pending",
+    });
+    const orderId = Number(orderResult.insertId);
+
+    for (const item of trustedItems) {
+      await tx.update(storeProducts)
+        .set({ stock: sql`${storeProducts.stock} - ${item.quantity}` })
+        .where(and(eq(storeProducts.id, item.productId), gte(storeProducts.stock, item.quantity)));
+    }
+
+    await tx.insert(storeOrderItems).values(trustedItems.map(item => ({ ...item, orderId })));
+    const [order] = await tx.select().from(storeOrders).where(eq(storeOrders.id, orderId)).limit(1);
+    const items = await tx.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId));
+    return order ? { ...order, items } : null;
+  });
+}
+
+export async function getStoreOrderById(orderId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [order] = await db.select().from(storeOrders).where(eq(storeOrders.id, orderId)).limit(1);
+  if (!order) return null;
+  const items = await db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, orderId));
+  return { ...order, items };
+}
+
+export async function getStoreOrdersList() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const orders = await db.select().from(storeOrders).orderBy(desc(storeOrders.createdAt));
+  const results = [];
+  for (const order of orders) {
+    const items = await db.select().from(storeOrderItems).where(eq(storeOrderItems.orderId, order.id));
+    results.push({ ...order, items });
+  }
+  return results;
+}
+
+export async function updateStoreOrderStatus(orderId: number, status: "pending" | "confirmed" | "completed" | "cancelled") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeOrders).set({ status }).where(eq(storeOrders.id, orderId));
+  return getStoreOrderById(orderId);
 }
