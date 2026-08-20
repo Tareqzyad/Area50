@@ -1,27 +1,9 @@
-# دليل نشر موقع Area 50 على Netlify
+# ملاحظة توافق Netlify
 
-تم تجهيز هذا المشروع ليعمل بشكل كامل (الواجهة + وظائف الحجز ولوحة الإدارة عبر Netlify Functions + قاعدة البيانات).
+نسخة Area 50 الحالية ليست موقعاً ثابتاً فقط؛ فهي تعتمد على خادم **Node.js + Express + tRPC** وقاعدة بيانات MySQL. لذلك لا يكفي إعداد Netlify Static أو رفع مجلد `dist/public` وحده لتشغيل الحجوزات ولوحة الإدارة.
 
-## الخطوات:
+للنشر الخارجي المباشر، استخدم خدمة Node كاملة مثل **Render Web Service** أو Railway، مع أوامر البناء والتشغيل الموجودة في `RENDER_DEPLOY.md` و`GITHUB_DEPLOY.md`.
 
-1. **إنشاء مستودع GitHub:**
-   - ارفع مجلد المشروع إلى مستودع جديد على GitHub (تأكد من عدم رفع مجلد `node_modules` أو `.env`).
+يمكن استخدام Netlify فقط بعد تنفيذ تحويل منفصل إلى Netlify Functions وربط مسارات tRPC وقاعدة البيانات بها، وهذا ليس مسار التشغيل المعتمد للنسخة الحالية.
 
-2. **الربط مع Netlify:**
-   - سجل الدخول إلى [Netlify](https://www.netlify.com).
-   - اضغط على **Add new site** ثم **Import an existing project**.
-   - اختر مستودع GitHub الخاص بـ Area 50.
-
-3. **إعدادات البناء (Build Settings):**
-   - **Build command:** `pnpm build`
-   - **Publish directory:** `dist/public`
-   - **Functions directory:** `netlify/functions`
-
-4. **متغيرات البيئة (Environment Variables):**
-   اذهب إلى **Site settings > Environment variables** وأضف المتغيرات التالية:
-   - `DATABASE_URL`: رابط اتصال قاعدة بيانات MySQL الخاصة بك (مثلاً من Aiven أو PlanetScale أو TiDB).
-   - `JWT_SECRET`: مفتاح سري عشوائي لتوقيع الجلسات (مثلاً `area50_secure_jwt_key_2026`).
-   - `AREA50_ADMIN_CODE`: رمز الدخول للوحة الإدارة (`area50iq119080`).
-
-5. **النشر (Deploy):**
-   - اضغط **Deploy site**، وسيتم نشر الموقع مع تفعيل واجهة الـ API والحجوزات ولوحة الأدمن بشكل كامل!
+> لا ترفع ملفات `.env` أو أي مفاتيح سرية إلى GitHub أو Netlify. أضف `DATABASE_URL` و`JWT_SECRET` و`AREA50_ADMIN_CODE` من خلال قسم Secrets في منصة الاستضافة التي ستشغّل خدمة Node.

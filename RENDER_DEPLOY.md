@@ -1,27 +1,38 @@
-# دليل نشر موقع Area 50 على منصة Render
+# نشر Area 50 على Render
 
-منصة **Render** تعتبر الخيار الأنسب والأسهل لاستضافة مشروع Area 50 بالكامل (الواجهة + الخادم + قاعدة البيانات MySQL) بدون الحاجة لعقود معقدة.
+تعمل نسخة Area 50 الحالية كتطبيق **Node.js + Express + React + tRPC** مع قاعدة بيانات MySQL؛ لذلك يجب نشرها كـ **Web Service** وليس كموقع Static فقط.
 
-## الخطوات:
+## الإعدادات
 
-1. **إنشاء قاعدة البيانات (MySQL Database):**
-   - سجل الدخول إلى [Render Dashboard](https://dashboard.render.com).
-   - اضغط على **New +** ثم اختر **MySQL**.
-   - اختر اسماً للقاعدة (مثلاً `area50-db`) وانسخ **Internal Database URL** أو **External Database URL**.
+| الحقل | القيمة |
+|---|---|
+| Environment | Node |
+| Build Command | `pnpm install --frozen-lockfile && pnpm run build` |
+| Start Command | `pnpm start` |
+| Node Version | 20 أو أحدث |
+| Health Check Path | `/` |
 
-2. **رفع المشروع (Web Service):**
-   - ارفع مجلد المشروع إلى مستودع GitHub خاص بك.
-   - من لوحة تحكم Render، اضغط **New +** ثم **Web Service**.
-   - اربطه بمستودع GitHub الخاص بـ Area 50.
-   - **Environment:** `Node`
-   - **Build Command:** `pnpm install && pnpm build`
-   - **Start Command:** `pnpm start`
+اربط الخدمة بمستودع GitHub من لوحة Render، ثم أضف متغيرات البيئة في قسم **Environment Variables**. لا تضع القيم السرية داخل المستودع أو ملفات Markdown.
 
-3. **إعداد متغيرات البيئة (Environment Variables):**
-   في إعدادات الخدمة على Render، أضف المتجرين التاليين:
-   - `DATABASE_URL`: رابط اتصال قاعدة البيانات الذي نسخته في الخطوة الأولى.
-   - `JWT_SECRET`: مفتاح سري عشوائي (مثلاً `area50_render_secret_2026`).
-   - `AREA50_ADMIN_CODE`: رمز الدخول للوحة الإدارة (`area50iq119080`).
+| المتغير | الاستخدام |
+|---|---|
+| `DATABASE_URL` | رابط اتصال MySQL أو TiDB القابل للوصول من Render |
+| `JWT_SECRET` | مفتاح سري طويل لتوقيع جلسات الخادم |
+| `AREA50_ADMIN_CODE` | الرمز الذي تختاره لدخول لوحة الإدارة |
+| `NODE_ENV` | القيمة `production` |
 
-4. **النشر:**
-   - اضغط **Create Web Service**، وسيتم بناء ونشر الموقع بالكامل مع تفعيل الحجوزات ولوحة الأدمن والمزامنة الفورية للأسعار!
+بعد إنشاء الخدمة، شغّل تهيئة الجداول مرة واحدة من Shell الاستضافة أو من جهاز موثوق:
+
+```bash
+pnpm db:push
+```
+
+ثم افتح رابط الخدمة، وستكون لوحة الإدارة على المسار:
+
+```text
+/area50iq-admin
+```
+
+> لا تستخدم رمزاً تجريبياً أو رمزاً منشوراً في GitHub. خزّن رمز الإدارة وقيمة `JWT_SECRET` في Secrets الخاصة بالاستضافة فقط.
+
+للمراجعة، راجع [وثائق Render الخاصة بخدمات الويب](https://render.com/docs/web-services) و[وثائق متغيرات البيئة](https://render.com/docs/configure-environment-variables).
