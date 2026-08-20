@@ -41,8 +41,8 @@ export default function Home() {
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="hero-copy">
-            <div className="eyebrow"><span>01</span> بوابة التجربة</div>
-            <h1 id="home-title">اللعب<br /><em>يبدأ</em> من هنا.</h1>
+            <div className="eyebrow"><span>01</span> AREA 50 CENTER</div>
+            <h1 id="home-title">هلا بك في<br /><em>Area 50 Center</em></h1>
             <p className="hero-lead">مكان واحد يجمع جلسة اللعب، لحظة التحدّي، والقطعة التي تكمل عالمك.</p>
             <div className="hero-actions">
               <a className="text-link" href="#portals">اختَر مساحتك <ArrowUpLeft size={18} strokeWidth={1.8} /></a>
