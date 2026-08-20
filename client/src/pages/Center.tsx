@@ -1,7 +1,24 @@
-// Area 50 design reminder: center page is an energetic night-arcade route—bold blocks, game-specific cards, and room booking that only accepts full hours.
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, CarFront, CircleDot, Clock3, Crown, Gamepad2, MapPin, MessageCircle, Monitor, Phone, Sparkles, Table2, Trophy, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CarFront,
+  CircleDot,
+  Clock3,
+  Crown,
+  Gamepad2,
+  MapPin,
+  MessageCircle,
+  Monitor,
+  Phone,
+  Sparkles,
+  Table2,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 const CENTER_IMAGE = "/manus-storage/area50-center-hero_de9fad3b.jpg";
 const MARK_IMAGE = "/manus-storage/area50-mark_6c38c50c.png";
@@ -33,6 +50,7 @@ const services = [
   { index: "05", title: "STEERING WHEEL", label: "RACE DECK", detail: "ثبت الحزام، اختَر مسارك، وخلي السباق يبدأ من أول لفة.", icon: CarFront, tone: "yellow", meta: "RACE / START" },
   { index: "06", title: "SEASONAL TOURNAMENTS", label: "AREA 50 EVENTS", detail: "بطولات موسمية، جدول واضح، ومنافسة تجمع لاعبي المدينة.", icon: Trophy, tone: "violet", meta: "BRACKET / LIVE" },
   { index: "07", title: "VIP ROOM", label: "PRIVATE / VIP", detail: "غرفة خاصة للجلسات الهادئة، الفرق الصغيرة، والمناسبات المميزة.", icon: Crown, tone: "violet", meta: "ROOM / PRIVATE" },
+  { index: "08", title: "VVIP ROOM", label: "PRIVATE / VVIP", detail: "آخر مستوى من الخصوصية داخل Area 50. مساحة أوسع وتجربة أهدأ.", icon: Crown, tone: "aqua", meta: "ROOM / SIGNATURE" },
 ];
 
 function CenterHeader() {
@@ -48,51 +66,85 @@ function CenterHeader() {
 type BookingFormProps = {
   room: "VIP Room" | "VVIP Room";
   variant: "vip" | "vvip";
+  price?: { pricePerHour: number; currency: string };
 };
 
-function BookingForm({ room, variant }: BookingFormProps) {
-  const [booking, setBooking] = useState({ date: "", startTime: "", endTime: "", guests: "" });
+function BookingForm({ room, variant, price }: BookingFormProps) {
+  const [booking, setBooking] = useState({ guestName: "", date: "", startTime: "", endTime: "", guests: "" });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const startOptions = bookingHours.slice(0, -1);
   const endOptions = bookingHours.slice(1);
+  const createBooking = trpc.booking.create.useMutation();
 
   function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const start = Number(booking.startTime);
     const end = Number(booking.endTime);
+    const guests = Number(booking.guests);
+    if (!booking.guestName.trim()) {
+      setError("اكتب اسم الشخص اللي يريد الحجز.");
+      return;
+    }
     if (!booking.startTime || !booking.endTime || end <= start) {
       setError("اختَر وقت نهاية بعد وقت البداية وبساعة كاملة.");
       return;
     }
     setError("");
-    const startLabel = bookingHours.find((option) => option.value === booking.startTime)?.label ?? booking.startTime;
-    const endLabel = bookingHours.find((option) => option.value === booking.endTime)?.label ?? booking.endTime;
-    const details = [
-      `مرحباً Area 50، أريد حجز ${room}.`,
-      booking.date ? `التاريخ: ${booking.date}` : "التاريخ: يحدد لاحقاً",
-      `الوقت: من ${startLabel} إلى ${endLabel}`,
-      booking.guests ? `عدد الأشخاص: ${booking.guests}` : "عدد الأشخاص: يحدد لاحقاً",
-    ].join("%0A");
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${details}`, "_blank", "noopener,noreferrer");
+    setSuccess("");
+    createBooking.mutate(
+      {
+        room: variant,
+        guestName: booking.guestName.trim(),
+        bookingDate: booking.date,
+        startHour: start,
+        endHour: end,
+        guests,
+      },
+      {
+        onSuccess: () => {
+          const startLabel = bookingHours.find((option) => option.value === booking.startTime)?.label ?? booking.startTime;
+          const endLabel = bookingHours.find((option) => option.value === booking.endTime)?.label ?? booking.endTime;
+          const details = [
+            `مرحباً Area 50، أريد حجز ${room}.`,
+            `اسم الحاجز: ${booking.guestName.trim()}`,
+            `التاريخ: ${booking.date}`,
+            `الوقت: من ${startLabel} إلى ${endLabel}`,
+            `عدد الأشخاص: ${booking.guests}`,
+          ].join("\n");
+          setSuccess("وصل طلبك إلى الإدارة، افتح واتساب لإكمال التأكيد.");
+          toast.success("تم تسجيل طلب الحجز");
+          window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(details)}`, "_blank", "noopener,noreferrer");
+        },
+        onError: (mutationError) => setError(mutationError.message || "تعذر تسجيل الطلب، حاول مرة ثانية."),
+      },
+    );
   }
 
   return (
     <form className={`vip-booking-form vip-booking-form--${variant}`} onSubmit={submitBooking}>
       <div className="vip-form-heading"><span>{variant === "vip" ? "07 / VIP BOOKING" : "08 / VVIP BOOKING"}</span><strong>احجز غرفتك الخاصة.</strong></div>
+      <label>اسم الشخص الحاجز<input type="text" required maxLength={120} placeholder="مثلاً: أحمد محمد" value={booking.guestName} onChange={(event) => setBooking({ ...booking, guestName: event.target.value })} /></label>
       <label>التاريخ<input type="date" required value={booking.date} onChange={(event) => setBooking({ ...booking, date: event.target.value })} /></label>
       <div className="vip-form-row vip-form-row--hours">
         <label>من الساعة<select required value={booking.startTime} onChange={(event) => setBooking({ ...booking, startTime: event.target.value })}><option value="">اختَر</option>{startOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label>إلى الساعة<select required value={booking.endTime} onChange={(event) => setBooking({ ...booking, endTime: event.target.value })}><option value="">اختَر</option>{endOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
       </div>
-      <label>عدد الأشخاص<select required value={booking.guests} onChange={(event) => setBooking({ ...booking, guests: event.target.value })}><option value="">اختَر العدد</option><option value="2">2 أشخاص</option><option value="4">4 أشخاص</option><option value="6">6 أشخاص</option><option value="8+">8+ أشخاص</option></select></label>
+      <label>عدد الأشخاص<select required value={booking.guests} onChange={(event) => setBooking({ ...booking, guests: event.target.value })}><option value="">اختَر العدد</option>{[1, 2, 3, 4, 5, 6, 8, 10, 12].map((number) => <option key={number} value={number}>{number} أشخاص</option>)}</select></label>
+      <div className="vip-price-note">{price && price.pricePerHour > 0 ? `${price.pricePerHour.toLocaleString()} ${price.currency} / ساعة` : "السعر يحدده الإدارة"}</div>
       {error && <p className="vip-booking-error" role="alert">{error}</p>}
-      <button type="submit" className="vip-booking-submit"><MessageCircle size={18} /> أرسل طلب الحجز <ArrowLeft size={18} /></button>
+      {success && <p className="vip-booking-success" role="status">{success}</p>}
+      <button type="submit" className="vip-booking-submit" disabled={createBooking.isPending}><MessageCircle size={18} /> {createBooking.isPending ? "جارٍ تسجيل الطلب..." : "أرسل طلب الحجز"} <ArrowLeft size={18} /></button>
       <a className="vip-call-link" href="tel:07729220544"><Phone size={15} /> أو اتصل مباشرةً: 07729220544</a>
     </form>
   );
 }
 
 export default function Center() {
+  const { data: prices } = trpc.prices.list.useQuery();
+  const vipPrice = prices?.find((price) => price.room === "vip");
+  const vvipPrice = prices?.find((price) => price.room === "vvip");
+
   return (
     <div className="area-page area-page--sub area-page--center center-redesign" dir="rtl">
       <CenterHeader />
@@ -111,7 +163,7 @@ export default function Center() {
             <span className="center-hero-rework__stamp">OPEN<br /><strong>LATE</strong></span>
             <span className="center-hero-rework__vertical">YOUR NIGHT / YOUR GAME</span>
           </div>
-          <div className="center-hero-rework__rail"><span>01</span><i /><span>07</span><small>SPACES<br />TO PLAY</small></div>
+          <div className="center-hero-rework__rail"><span>01</span><i /><span>08</span><small>SPACES<br />TO PLAY</small></div>
         </section>
 
         <section className="center-signal" aria-label="معلومات السنتر">
@@ -145,7 +197,7 @@ export default function Center() {
             <p>غرفة خاصة للجلسات الهادئة، الفرق الصغيرة، والمناسبات التي تريدها بخصوصية أكثر.</p>
             <div className="center-vip__notes"><span><Sparkles size={15} /> جلسة خاصة</span><span><Users size={15} /> للفرق الصغيرة</span></div>
           </div>
-          <BookingForm room="VIP Room" variant="vip" />
+          <BookingForm room="VIP Room" variant="vip" price={vipPrice} />
         </section>
 
         <section className="center-vip center-vvip" id="vvip-room" aria-labelledby="vvip-title">
@@ -156,7 +208,7 @@ export default function Center() {
             <p>آخر مستوى من الخصوصية داخل Area 50. غرفة أهدأ، مساحة أوسع، وتجربة تنحجز قبل ما توصل.</p>
             <div className="center-vip__notes"><span><Sparkles size={15} /> أجواء خاصة</span><span><Users size={15} /> للفرق والمناسبات</span></div>
           </div>
-          <BookingForm room="VVIP Room" variant="vvip" />
+          <BookingForm room="VVIP Room" variant="vvip" price={vvipPrice} />
         </section>
       </main>
       <footer className="site-footer center-footer"><span>AREA 50 / CENTER</span><span>للحجز والاستفسار · 07729220544</span></footer>
