@@ -20,8 +20,9 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 
-const CENTER_IMAGE = "/manus-storage/area50-center-hero_de9fad3b.jpg";
-const MARK_IMAGE = "/manus-storage/area50-mark_6c38c50c.png";
+const ASSET_BASE = "https://area50game-jujyunld.manus.space/manus-storage";
+const CENTER_IMAGE = `${ASSET_BASE}/area50-center-hero_de9fad3b.jpg`;
+const MARK_IMAGE = `${ASSET_BASE}/area50-mark_6c38c50c.png`;
 
 const bookingHours = [
   { value: "12", label: "12:00 PM" },

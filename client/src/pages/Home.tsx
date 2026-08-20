@@ -2,9 +2,10 @@
 import { ArrowUpLeft, MapPin, Sparkles, Timer, Instagram } from "lucide-react";
 import { Link } from "wouter";
 
-const CENTER_IMAGE = "/manus-storage/area50-center-hero_de9fad3b.jpg";
-const STORE_IMAGE = "/manus-storage/area50-store-hero_cfa38d93.jpg";
-const MARK_IMAGE = "/manus-storage/area50-mark_6c38c50c.png";
+const ASSET_BASE = "https://area50game-jujyunld.manus.space/manus-storage";
+const CENTER_IMAGE = `${ASSET_BASE}/area50-center-hero_de9fad3b.jpg`;
+const STORE_IMAGE = `${ASSET_BASE}/area50-store-hero_cfa38d93.jpg`;
+const MARK_IMAGE = `${ASSET_BASE}/area50-mark_6c38c50c.png`;
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
   return (

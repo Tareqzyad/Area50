@@ -64,7 +64,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   inset: 0;
   pointer-events: none;
   opacity: .23;
-  background-image: url("/manus-storage/area50-grid-texture_17fc3c46.png");
+  background-image: url("https://area50game-jujyunld.manus.space/manus-storage/area50-grid-texture_17fc3c46.png");
   background-size: 460px;
   mix-blend-mode: screen;
   z-index: 0;
@@ -409,7 +409,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .vip-booking-submit:disabled { cursor: wait; opacity: .62; transform: none; }
 
 .admin-page { min-height: 100vh; padding: 48px max(24px, calc((100vw - 1240px) / 2)) 80px; background: #080a10; color: var(--area-ink); }
-.admin-page::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .16; background-image: url("/manus-storage/area50-grid-texture_17fc3c46.png"); background-size: 460px; mix-blend-mode: screen; }
+.admin-page::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .16; background-image: url("https://area50game-jujyunld.manus.space/manus-storage/area50-grid-texture_17fc3c46.png"); background-size: 460px; mix-blend-mode: screen; }
 .admin-page > * { position: relative; z-index: 1; }
 .admin-page--login { display: grid; place-items: center; width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; padding: 24px; }
 .admin-login-card { width: 100%; max-width: 470px; min-width: 0; box-sizing: border-box; padding: 42px; background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #11141b; border: 1px solid rgba(216,244,58,.24); box-shadow: 18px 20px 0 rgba(216,244,58,.05); direction: rtl; }

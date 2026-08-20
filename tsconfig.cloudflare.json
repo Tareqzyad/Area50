@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "cloudflare/**/*.ts",
+    "cloudflare/**/*.d.ts",
+    "server/adminAuth.ts",
+    "server/_core/env.ts",
+    "server/_core/cookies.ts",
+    "worker-configuration.d.ts"
+  ]
+}

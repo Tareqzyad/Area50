@@ -4,8 +4,9 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
-const STORE_HERO = "/manus-storage/area50-store-hero_cfa38d93.jpg";
-const MARK_IMAGE = "/manus-storage/area50-mark_6c38c50c.png";
+const ASSET_BASE = "https://area50game-jujyunld.manus.space/manus-storage";
+const STORE_HERO = `${ASSET_BASE}/area50-store-hero_cfa38d93.jpg`;
+const MARK_IMAGE = `${ASSET_BASE}/area50-mark_6c38c50c.png`;
 
 type CartItem = { id: number; name: string; price: number; currency: string; imageUrl: string; quantity: number; stock: number };
 type StoreCategory = { id: number; slug: string; title: string; detail: string | null; tone: string };
