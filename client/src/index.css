@@ -387,3 +387,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (max-width: 800px) {
   .center-vvip::before { font-size: 150px; }
 }
+
+/* Room booking controls: both rooms use discrete full-hour slots, never minute-level input. */
+.center-vip--standard { margin-top: 112px; background: linear-gradient(115deg, rgba(158,99,220,.24), rgba(38,21,58,.8) 42%, rgba(16,18,25,.98) 100%); border-color: rgba(158,99,220,.72); border-right-color: var(--area-violet); }
+.center-vip--standard .center-vip__intro h2 em { color: var(--area-violet); }
+.center-vip--standard .vip-booking-submit { background: var(--area-violet); color: white; }
+.center-vip--standard .vip-booking-submit:hover { background: #b981f3; }
+.center-vvip { margin-top: 24px; }
+.vip-booking-form--vip .vip-form-heading span { color: #c58aff; }
+.vip-form-row--hours { grid-template-columns: 1fr 1fr; }
+.vip-booking-form select { appearance: auto; }
+.vip-booking-error { margin: 4px 0 8px; color: #ff8fbd; font-size: 10px; line-height: 1.7; }
+@media (max-width: 430px) {
+  .vip-form-row--hours { display: grid; grid-template-columns: 1fr 1fr; }
+}
