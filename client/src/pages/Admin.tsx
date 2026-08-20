@@ -109,6 +109,7 @@ export default function Admin() {
 
   const bookings = trpc.admin.bookings.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const prices = trpc.admin.prices.list.useQuery(undefined, { enabled: isAdmin, retry: false });
+  const roomCountsQuery = trpc.admin.settings.roomCounts.useQuery(undefined, { enabled: isAdmin, retry: false });
   const categories = trpc.admin.store.categories.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const products = trpc.admin.store.products.list.useQuery(undefined, { enabled: isAdmin, retry: false });
   const storeOrders = trpc.admin.store.orders.list.useQuery(undefined, { enabled: isAdmin, retry: false });
@@ -136,6 +137,13 @@ export default function Admin() {
     onSuccess: async () => {
       await Promise.all([utils.admin.prices.list.invalidate(), utils.prices.list.invalidate()]);
       toast.success("تم حفظ السعر");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const updateRoomCounts = trpc.admin.settings.updateRoomCounts.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.admin.settings.roomCounts.invalidate(), utils.booking.roomCounts.invalidate()]);
+      toast.success("تم حفظ عدد الغرف وتحديث نموذج الحجز");
     },
     onError: error => toast.error(error.message),
   });
@@ -181,6 +189,7 @@ export default function Admin() {
       <AdminDashboard
       bookings={bookings.data ?? []}
       prices={prices.data ?? []}
+      roomCounts={roomCountsQuery.data ?? { vip: 4, vvip: 4 }}
       categories={(categories.data ?? []) as Category[]}
       products={(products.data ?? []) as Product[]}
       orders={(storeOrders.data ?? []) as StoreOrder[]}
@@ -190,6 +199,8 @@ export default function Admin() {
       onBookingDelete={(id) => deleteBooking.mutate({ id })}
       updatingPrice={updatePrice.isPending}
       onPriceSave={(room, pricePerHour) => updatePrice.mutate({ room, pricePerHour })}
+      updatingRoomCounts={updateRoomCounts.isPending}
+      onRoomCountsSave={(roomCounts) => updateRoomCounts.mutate(roomCounts)}
       updatingOrderStatus={updateStoreOrderStatus.isPending}
       onOrderStatusChange={(id, status) => updateStoreOrderStatus.mutate({ id, status })}
       onOrderDelete={(id) => deleteStoreOrder.mutate({ id })}
@@ -200,6 +211,7 @@ export default function Admin() {
 type AdminDashboardProps = {
   bookings: Array<{ id: number; room: "vip" | "vvip"; roomNumber: number; guestName: string; bookingDate: string; startHour: number; endHour: number; guests: number; status: "pending" | "confirmed" | "cancelled"; createdAt: Date }>;
   prices: Array<{ room: "vip" | "vvip"; pricePerHour: number; currency: string }>;
+  roomCounts: { vip: number; vvip: number };
   categories: Category[];
   products: Product[];
   orders: StoreOrder[];
@@ -209,16 +221,22 @@ type AdminDashboardProps = {
   onBookingDelete: (id: number) => void;
   updatingPrice: boolean;
   onPriceSave: (room: "vip" | "vvip", pricePerHour: number) => void;
+  updatingRoomCounts: boolean;
+  onRoomCountsSave: (roomCounts: { vip: number; vvip: number }) => void;
   updatingOrderStatus: boolean;
   onOrderStatusChange: (id: number, status: StoreOrderStatus) => void;
   onOrderDelete: (id: number) => void;
 };
 
-function AdminDashboard({ bookings, prices, categories, products, orders, onLogout, updatingStatus, onStatusChange, onBookingDelete, updatingPrice, onPriceSave, updatingOrderStatus, onOrderStatusChange, onOrderDelete }: AdminDashboardProps) {
+function AdminDashboard({ bookings, prices, roomCounts, categories, products, orders, onLogout, updatingStatus, onStatusChange, onBookingDelete, updatingPrice, onPriceSave, updatingRoomCounts, onRoomCountsSave, updatingOrderStatus, onOrderStatusChange, onOrderDelete }: AdminDashboardProps) {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [roomCountDrafts, setRoomCountDrafts] = useState({ vip: String(roomCounts.vip), vvip: String(roomCounts.vvip) });
   useEffect(() => {
     setPriceDrafts(Object.fromEntries(prices.map(price => [price.room, String(price.pricePerHour)])));
   }, [prices]);
+  useEffect(() => {
+    setRoomCountDrafts({ vip: String(roomCounts.vip), vvip: String(roomCounts.vvip) });
+  }, [roomCounts.vip, roomCounts.vvip]);
 
   const pendingCount = useMemo(() => bookings.filter(booking => booking.status === "pending").length, [bookings]);
   const confirmedCount = useMemo(() => bookings.filter(booking => booking.status === "confirmed").length, [bookings]);
@@ -244,6 +262,19 @@ function AdminDashboard({ bookings, prices, categories, products, orders, onLogo
               <div className="admin-price-card__top"><DoorOpen size={20} /><span>{roomLabels[room]}</span></div>
               <label>السعر لكل ساعة<input type="number" min="0" step="1000" value={priceDrafts[room] ?? "0"} onChange={event => setPriceDrafts({ ...priceDrafts, [room]: event.target.value })} /></label>
               <button onClick={() => onPriceSave(room, Math.max(0, Number(priceDrafts[room] ?? 0)))} disabled={updatingPrice}><Save size={16} /> {updatingPrice ? "جارٍ الحفظ" : "حفظ السعر"}</button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-panel" aria-labelledby="room-counts-title">
+        <div className="admin-panel-heading"><div><span className="admin-eyebrow">02 / ROOM CAPACITY</span><h2 id="room-counts-title">عدد الغرف</h2></div><p>غيّر عدد غرف VIP وVVIP، وستتحدث خيارات الحجز تلقائياً.</p></div>
+        <div className="admin-price-grid">
+          {(["vip", "vvip"] as const).map(room => (
+            <div className={`admin-price-card admin-price-card--${room}`} key={room}>
+              <div className="admin-price-card__top"><DoorOpen size={20} /><span>{roomLabels[room]}</span></div>
+              <label>عدد الغرف<input type="number" min="1" max="50" step="1" value={roomCountDrafts[room]} onChange={event => setRoomCountDrafts({ ...roomCountDrafts, [room]: event.target.value })} /></label>
+              <button onClick={() => onRoomCountsSave({ ...roomCounts, [room]: Math.max(1, Math.min(50, Math.floor(Number(roomCountDrafts[room]) || 1))) })} disabled={updatingRoomCounts}><Save size={16} /> {updatingRoomCounts ? "جارٍ الحفظ" : "حفظ العدد"}</button>
             </div>
           ))}
         </div>

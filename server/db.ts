@@ -14,6 +14,7 @@ import {
   StoreProduct,
   storeOrders,
   storeOrderItems,
+  systemSettings,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
@@ -27,6 +28,21 @@ const DEFAULT_ROOM_PRICES: Record<RoomKey, InsertRoomPrice> = {
   vip: { room: "vip", pricePerHour: 0, currency: "IQD" },
   vvip: { room: "vvip", pricePerHour: 0, currency: "IQD" },
 };
+
+const ROOM_COUNTS_SETTING_ID = "room_counts";
+export type RoomCounts = { vip: number; vvip: number };
+const DEFAULT_ROOM_COUNTS: RoomCounts = { vip: 4, vvip: 4 };
+
+function parseRoomCounts(value: string): RoomCounts {
+  try {
+    const parsed = JSON.parse(value) as Partial<RoomCounts>;
+    const vip = Number.isInteger(parsed.vip) ? Math.max(1, Math.min(50, parsed.vip as number)) : DEFAULT_ROOM_COUNTS.vip;
+    const vvip = Number.isInteger(parsed.vvip) ? Math.max(1, Math.min(50, parsed.vvip as number)) : DEFAULT_ROOM_COUNTS.vvip;
+    return { vip, vvip };
+  } catch {
+    return { ...DEFAULT_ROOM_COUNTS };
+  }
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -63,13 +79,54 @@ export async function getUserByOpenId(openId: string): Promise<User | null> {
   return result[0] || null;
 }
 
+export async function getRoomCounts(): Promise<RoomCounts> {
+  const db = await getDb();
+  if (!db) return { ...DEFAULT_ROOM_COUNTS };
+  const [setting] = await db.select().from(systemSettings).where(eq(systemSettings.id, ROOM_COUNTS_SETTING_ID)).limit(1);
+  if (!setting) {
+    await db.insert(systemSettings).values({
+      id: ROOM_COUNTS_SETTING_ID,
+      value: JSON.stringify(DEFAULT_ROOM_COUNTS),
+    });
+    return { ...DEFAULT_ROOM_COUNTS };
+  }
+  return parseRoomCounts(setting.value);
+}
+
+export async function updateRoomCounts(data: RoomCounts): Promise<RoomCounts> {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  if (!Number.isInteger(data.vip) || !Number.isInteger(data.vvip) || data.vip < 1 || data.vip > 50 || data.vvip < 1 || data.vvip > 50) {
+    throw new Error("عدد الغرف يجب أن يكون بين 1 و 50");
+  }
+  await db.insert(systemSettings).values({
+    id: ROOM_COUNTS_SETTING_ID,
+    value: JSON.stringify(data),
+  }).onDuplicateKeyUpdate({ set: { value: JSON.stringify(data) } });
+  return getRoomCounts();
+}
+
+export function bookingTimesOverlap(
+  candidate: Pick<InsertBooking, "room" | "roomNumber" | "bookingDate" | "startHour" | "endHour">,
+  existing: Pick<InsertBooking, "room" | "roomNumber" | "bookingDate" | "startHour" | "endHour" | "status">,
+): boolean {
+  return existing.status !== "cancelled"
+    && candidate.room === existing.room
+    && (candidate.roomNumber ?? 1) === (existing.roomNumber ?? 1)
+    && candidate.bookingDate === existing.bookingDate
+    && candidate.startHour < existing.endHour
+    && candidate.endHour > existing.startHour;
+}
+
 export async function createBooking(data: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
 
+  const roomCounts = await getRoomCounts();
+  const maxRooms = data.room === "vip" ? roomCounts.vip : roomCounts.vvip;
   const roomNum = data.roomNumber || 1;
-  if (roomNum < 1 || roomNum > 4) {
-    throw new Error("رقم الغرفة يجب أن يكون بين 1 و 4");
+  if (roomNum < 1 || roomNum > maxRooms) {
+    throw new Error(`رقم الغرفة يجب أن يكون بين 1 و ${maxRooms}`);
   }
 
   // Check for time overlap on the same room and date
@@ -83,9 +140,8 @@ export async function createBooking(data: InsertBooking) {
   );
 
   for (const b of existing) {
-    // Overlap condition: startA < endB && endA > startB
-    if (data.startHour < b.endHour && data.endHour > b.startHour) {
-      throw new Error(`الغرفة رقم ${roomNum} محجوزة بالفعل في هذا الوقت (${b.startHour}:00 - ${b.endHour}:00). ياختر وقتاً أو غرفة أخرى.`);
+    if (bookingTimesOverlap({ ...data, roomNumber: roomNum }, b)) {
+      throw new Error(`الغرفة رقم ${roomNum} محجوزة بالفعل في هذا الوقت (${b.startHour}:00 - ${b.endHour}:00). اختر وقتاً أو غرفة أخرى.`);
     }
   }
 

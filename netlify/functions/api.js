@@ -48451,6 +48451,11 @@ var storeOrderItems = mysqlTable("storeOrderItems", {
   price: int2("price").notNull(),
   quantity: int2("quantity").notNull()
 });
+var systemSettings = mysqlTable("system_settings", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+});
 
 // server/db.ts
 var _db = null;
@@ -48458,6 +48463,18 @@ var DEFAULT_ROOM_PRICES = {
   vip: { room: "vip", pricePerHour: 0, currency: "IQD" },
   vvip: { room: "vvip", pricePerHour: 0, currency: "IQD" }
 };
+var ROOM_COUNTS_SETTING_ID = "room_counts";
+var DEFAULT_ROOM_COUNTS = { vip: 4, vvip: 4 };
+function parseRoomCounts(value) {
+  try {
+    const parsed = JSON.parse(value);
+    const vip = Number.isInteger(parsed.vip) ? Math.max(1, Math.min(50, parsed.vip)) : DEFAULT_ROOM_COUNTS.vip;
+    const vvip = Number.isInteger(parsed.vvip) ? Math.max(1, Math.min(50, parsed.vvip)) : DEFAULT_ROOM_COUNTS.vvip;
+    return { vip, vvip };
+  } catch {
+    return { ...DEFAULT_ROOM_COUNTS };
+  }
+}
 async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -48490,12 +48507,42 @@ async function getUserByOpenId(openId) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result[0] || null;
 }
+async function getRoomCounts() {
+  const db = await getDb();
+  if (!db) return { ...DEFAULT_ROOM_COUNTS };
+  const [setting] = await db.select().from(systemSettings).where(eq(systemSettings.id, ROOM_COUNTS_SETTING_ID)).limit(1);
+  if (!setting) {
+    await db.insert(systemSettings).values({
+      id: ROOM_COUNTS_SETTING_ID,
+      value: JSON.stringify(DEFAULT_ROOM_COUNTS)
+    });
+    return { ...DEFAULT_ROOM_COUNTS };
+  }
+  return parseRoomCounts(setting.value);
+}
+async function updateRoomCounts(data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  if (!Number.isInteger(data.vip) || !Number.isInteger(data.vvip) || data.vip < 1 || data.vip > 50 || data.vvip < 1 || data.vvip > 50) {
+    throw new Error("\u0639\u062F\u062F \u0627\u0644\u063A\u0631\u0641 \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0628\u064A\u0646 1 \u0648 50");
+  }
+  await db.insert(systemSettings).values({
+    id: ROOM_COUNTS_SETTING_ID,
+    value: JSON.stringify(data)
+  }).onDuplicateKeyUpdate({ set: { value: JSON.stringify(data) } });
+  return getRoomCounts();
+}
+function bookingTimesOverlap(candidate, existing) {
+  return existing.status !== "cancelled" && candidate.room === existing.room && (candidate.roomNumber ?? 1) === (existing.roomNumber ?? 1) && candidate.bookingDate === existing.bookingDate && candidate.startHour < existing.endHour && candidate.endHour > existing.startHour;
+}
 async function createBooking(data) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
+  const roomCounts = await getRoomCounts();
+  const maxRooms = data.room === "vip" ? roomCounts.vip : roomCounts.vvip;
   const roomNum = data.roomNumber || 1;
-  if (roomNum < 1 || roomNum > 4) {
-    throw new Error("\u0631\u0642\u0645 \u0627\u0644\u063A\u0631\u0641\u0629 \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0628\u064A\u0646 1 \u0648 4");
+  if (roomNum < 1 || roomNum > maxRooms) {
+    throw new Error(`\u0631\u0642\u0645 \u0627\u0644\u063A\u0631\u0641\u0629 \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0628\u064A\u0646 1 \u0648 ${maxRooms}`);
   }
   const existing = await db.select().from(bookings).where(
     and(
@@ -48506,8 +48553,8 @@ async function createBooking(data) {
     )
   );
   for (const b of existing) {
-    if (data.startHour < b.endHour && data.endHour > b.startHour) {
-      throw new Error(`\u0627\u0644\u063A\u0631\u0641\u0629 \u0631\u0642\u0645 ${roomNum} \u0645\u062D\u062C\u0648\u0632\u0629 \u0628\u0627\u0644\u0641\u0639\u0644 \u0641\u064A \u0647\u0630\u0627 \u0627\u0644\u0648\u0642\u062A (${b.startHour}:00 - ${b.endHour}:00). \u064A\u0627\u062E\u062A\u0631 \u0648\u0642\u062A\u0627\u064B \u0623\u0648 \u063A\u0631\u0641\u0629 \u0623\u062E\u0631\u0649.`);
+    if (bookingTimesOverlap({ ...data, roomNumber: roomNum }, b)) {
+      throw new Error(`\u0627\u0644\u063A\u0631\u0641\u0629 \u0631\u0642\u0645 ${roomNum} \u0645\u062D\u062C\u0648\u0632\u0629 \u0628\u0627\u0644\u0641\u0639\u0644 \u0641\u064A \u0647\u0630\u0627 \u0627\u0644\u0648\u0642\u062A (${b.startHour}:00 - ${b.endHour}:00). \u0627\u062E\u062A\u0631 \u0648\u0642\u062A\u0627\u064B \u0623\u0648 \u063A\u0631\u0641\u0629 \u0623\u062E\u0631\u0649.`);
     }
   }
   await db.insert(bookings).values({ ...data, roomNumber: roomNum });
@@ -48835,10 +48882,11 @@ var appRouter = router({
     list: publicProcedure.query(() => listRoomPrices())
   }),
   booking: router({
+    roomCounts: publicProcedure.query(() => getRoomCounts()),
     create: publicProcedure.input(
       external_exports.object({
         room: roomSchema,
-        roomNumber: external_exports.number().int().min(1).max(4).default(1),
+        roomNumber: external_exports.number().int().min(1).max(50).default(1),
         guestName: external_exports.string().trim().min(2).max(120),
         bookingDate: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         startHour: external_exports.number().int().min(0).max(23),
@@ -48901,6 +48949,10 @@ var appRouter = router({
       list: adminSessionProcedure.query(() => listBookings()),
       updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: statusSchema })).mutation(({ input }) => updateBookingStatus(input.id, input.status)),
       delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteBooking(input.id))
+    }),
+    settings: router({
+      roomCounts: adminSessionProcedure.query(() => getRoomCounts()),
+      updateRoomCounts: adminSessionProcedure.input(external_exports.object({ vip: external_exports.number().int().min(1).max(50), vvip: external_exports.number().int().min(1).max(50) })).mutation(({ input }) => updateRoomCounts(input))
     }),
     prices: router({
       list: adminSessionProcedure.query(() => listRoomPrices()),

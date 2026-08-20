@@ -6,6 +6,7 @@ const dbMocks = vi.hoisted(() => ({
   createBooking: vi.fn(),
   listBookings: vi.fn().mockResolvedValue([]),
   updateBookingStatus: vi.fn(),
+  deleteBooking: vi.fn().mockResolvedValue({ success: true }),
   listRoomPrices: vi.fn().mockResolvedValue([]),
   updateRoomPrice: vi.fn(),
   listStoreCategories: vi.fn().mockResolvedValue([{ id: 1, slug: "accessories", title: "إكسسوارات", detail: "قطع للـ setup", tone: "cyan" }]),
@@ -19,6 +20,7 @@ const dbMocks = vi.hoisted(() => ({
   createStoreOrder: vi.fn().mockResolvedValue({ id: 7, status: "pending", totalAmount: 25000, items: [] }),
   getStoreOrdersList: vi.fn().mockResolvedValue([]),
   updateStoreOrderStatus: vi.fn().mockResolvedValue({ id: 7, status: "confirmed" }),
+  deleteStoreOrder: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("./db", () => dbMocks);
@@ -98,10 +100,25 @@ describe("admin store procedures", () => {
     expect(dbMocks.updateStoreOrderStatus).toHaveBeenCalledWith(7, "confirmed");
   });
 
+  it("deletes a store order when an admin cancels it", async () => {
+    const caller = appRouter.createCaller(adminContext());
+    await caller.admin.store.orders.delete({ id: 7 });
+    expect(dbMocks.deleteStoreOrder).toHaveBeenCalledWith(7);
+  });
+
   it("rejects store order management without an admin session", async () => {
     dbMocks.getStoreOrdersList.mockClear();
     const caller = appRouter.createCaller(publicContext);
     await expect(caller.admin.store.orders.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(dbMocks.getStoreOrdersList).not.toHaveBeenCalledWith();
+  });
+});
+
+
+describe("admin booking deletion", () => {
+  it("deletes a booking when an admin cancels it", async () => {
+    const caller = appRouter.createCaller(adminContext());
+    await caller.admin.bookings.delete({ id: 12 });
+    expect(dbMocks.deleteBooking).toHaveBeenCalledWith(12);
   });
 });

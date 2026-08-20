@@ -94,3 +94,12 @@ export type StoreOrder = typeof storeOrders.$inferSelect;
 export type InsertStoreOrder = typeof storeOrders.$inferInsert;
 export type StoreOrderItem = typeof storeOrderItems.$inferSelect;
 export type InsertStoreOrderItem = typeof storeOrderItems.$inferInsert;
+
+export const systemSettings = mysqlTable("system_settings", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = typeof systemSettings.$inferInsert;

@@ -21,12 +21,14 @@ import {
   deleteStoreCategory,
   deleteStoreProduct,
   getStoreOrdersList,
+  getRoomCounts,
   listBookings,
   listRoomPrices,
   listStoreCategories,
   listStoreProducts,
   updateBookingStatus,
   updateRoomPrice,
+  updateRoomCounts,
   updateStoreOrderStatus,
   updateStoreCategory,
   updateStoreProduct,
@@ -81,11 +83,12 @@ export const appRouter = router({
   }),
 
   booking: router({
+    roomCounts: publicProcedure.query(() => getRoomCounts()),
     create: publicProcedure
       .input(
         z.object({
           room: roomSchema,
-          roomNumber: z.number().int().min(1).max(4).default(1),
+          roomNumber: z.number().int().min(1).max(50).default(1),
           guestName: z.string().trim().min(2).max(120),
           bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           startHour: z.number().int().min(0).max(23),
@@ -159,6 +162,12 @@ export const appRouter = router({
       delete: adminSessionProcedure
         .input(z.object({ id: z.number().int().positive() }))
         .mutation(({ input }) => deleteBooking(input.id)),
+    }),
+    settings: router({
+      roomCounts: adminSessionProcedure.query(() => getRoomCounts()),
+      updateRoomCounts: adminSessionProcedure
+        .input(z.object({ vip: z.number().int().min(1).max(50), vvip: z.number().int().min(1).max(50) }))
+        .mutation(({ input }) => updateRoomCounts(input)),
     }),
     prices: router({
       list: adminSessionProcedure.query(() => listRoomPrices()),

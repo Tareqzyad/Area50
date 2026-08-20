@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -66,15 +66,24 @@ type BookingFormProps = {
   room: "VIP Room" | "VVIP Room";
   variant: "vip" | "vvip";
   price?: { pricePerHour: number; currency: string };
+  roomCount?: number;
 };
 
-function BookingForm({ room, variant, price }: BookingFormProps) {
+function BookingForm({ room, variant, price, roomCount = 4 }: BookingFormProps) {
   const [booking, setBooking] = useState({ guestName: "", roomNumber: "1", date: "", startTime: "", endTime: "", guests: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const availableRoomCount = Math.max(1, roomCount);
+  const roomOptions = Array.from({ length: availableRoomCount }, (_, index) => index + 1);
   const startOptions = bookingHours.slice(0, -1);
   const endOptions = bookingHours.slice(1);
   const createBooking = trpc.booking.create.useMutation();
+
+  useEffect(() => {
+    if (Number(booking.roomNumber) > availableRoomCount) {
+      setBooking((current) => ({ ...current, roomNumber: "1" }));
+    }
+  }, [availableRoomCount, booking.roomNumber]);
 
   function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,7 +126,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
     <form className={`vip-booking-form vip-booking-form--${variant}`} onSubmit={submitBooking}>
       <div className="vip-form-heading"><span>{variant === "vip" ? "07 / VIP BOOKING" : "08 / VVIP BOOKING"}</span><strong>احجز غرفتك الخاصة.</strong></div>
       <label>اسم الشخص الحاجز<input type="text" required maxLength={120} placeholder="مثلاً: أحمد محمد" value={booking.guestName} onChange={(event) => setBooking({ ...booking, guestName: event.target.value })} /></label>
-      <label>اختيار رقم الغرفة (1 إلى 4)<select required value={booking.roomNumber} onChange={(event) => setBooking({ ...booking, roomNumber: event.target.value })}><option value="1">الغرفة رقم 1</option><option value="2">الغرفة رقم 2</option><option value="3">الغرفة رقم 3</option><option value="4">الغرفة رقم 4</option></select></label>
+      <label>اختيار رقم الغرفة (1 إلى {availableRoomCount})<select required value={booking.roomNumber} onChange={(event) => setBooking({ ...booking, roomNumber: event.target.value })}>{roomOptions.map((roomNumber) => <option key={roomNumber} value={roomNumber}>الغرفة رقم {roomNumber}</option>)}</select></label>
       <label>التاريخ<input type="date" required value={booking.date} onChange={(event) => setBooking({ ...booking, date: event.target.value })} /></label>
       <div className="vip-form-row vip-form-row--hours">
         <label>من الساعة<select required value={booking.startTime} onChange={(event) => setBooking({ ...booking, startTime: event.target.value })}><option value="">اختَر</option>{startOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -137,6 +146,7 @@ export default function Center() {
   const { data: prices } = trpc.prices.list.useQuery();
   const vipPrice = prices?.find((price) => price.room === "vip");
   const vvipPrice = prices?.find((price) => price.room === "vvip");
+  const { data: roomCounts } = trpc.booking.roomCounts.useQuery();
 
   return (
     <div className="area-page area-page--sub area-page--center center-redesign" dir="rtl">
@@ -190,7 +200,7 @@ export default function Center() {
             <p>غرفة خاصة للجلسات الهادئة، الفرق الصغيرة، والمناسبات التي تريدها بخصوصية أكثر.</p>
             <div className="center-vip__notes"><span><Sparkles size={15} /> جلسة خاصة</span><span><Users size={15} /> للفرق الصغيرة</span></div>
           </div>
-          <BookingForm room="VIP Room" variant="vip" price={vipPrice} />
+          <BookingForm room="VIP Room" variant="vip" price={vipPrice} roomCount={roomCounts?.vip} />
         </section>
 
         <section className="center-vip center-vvip" id="vvip-room" aria-labelledby="vvip-title">
@@ -201,7 +211,7 @@ export default function Center() {
             <p>آخر مستوى من الخصوصية داخل Area 50. غرفة أهدأ، مساحة أوسع، وتجربة تنحجز قبل ما توصل.</p>
             <div className="center-vip__notes"><span><Sparkles size={15} /> أجواء خاصة</span><span><Users size={15} /> للفرق والمناسبات</span></div>
           </div>
-          <BookingForm room="VVIP Room" variant="vvip" price={vvipPrice} />
+          <BookingForm room="VVIP Room" variant="vvip" price={vvipPrice} roomCount={roomCounts?.vvip} />
         </section>
       </main>
       <footer className="site-footer center-footer"><span>AREA 50 / CENTER</span><span>للحجز والاستفسار · 07729220544</span></footer>
