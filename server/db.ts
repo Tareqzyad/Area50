@@ -1,4 +1,3 @@
-import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   bookings,
@@ -8,8 +7,14 @@ import {
   roomPrices,
   RoomPrice,
   users,
+  User,
+  storeCategories,
+  storeProducts,
+  StoreCategory,
+  StoreProduct,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { eq, desc } from "drizzle-orm";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -40,46 +45,26 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     console.warn("[Database] Cannot upsert user: database not available");
     return;
   }
-
-  const values: InsertUser = { openId: user.openId };
-  const updateSet: Record<string, unknown> = {};
-  const textFields = ["name", "email", "loginMethod"] as const;
-
-  for (const field of textFields) {
-    if (user[field] !== undefined) {
-      const normalized = user[field] ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    }
-  }
-  if (user.lastSignedIn !== undefined) {
-    values.lastSignedIn = user.lastSignedIn;
-    updateSet.lastSignedIn = user.lastSignedIn;
-  }
-  if (user.role !== undefined) {
-    values.role = user.role;
-    updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
-  values.lastSignedIn ??= new Date();
-  if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  await db.insert(users).values(user).onDuplicateKeyUpdate({
+    set: {
+      name: user.name,
+      email: user.email,
+      lastSignedIn: new Date(),
+    },
+  });
 }
 
-export async function getUserByOpenId(openId: string) {
+export async function getUserByOpenId(openId: string): Promise<User | null> {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
+  return result[0] || null;
 }
 
-export async function createBooking(input: InsertBooking) {
+export async function createBooking(data: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(bookings).values(input);
+  await db.insert(bookings).values(data);
   const result = await db.select().from(bookings).orderBy(desc(bookings.id)).limit(1);
   return result[0];
 }
@@ -122,4 +107,151 @@ export async function updateRoomPrice(room: RoomKey, pricePerHour: number) {
   }).onDuplicateKeyUpdate({ set: { pricePerHour } });
   const result = await db.select().from(roomPrices).where(eq(roomPrices.room, room)).limit(1);
   return result[0];
+}
+
+export async function listStoreCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  const list = await db.select().from(storeCategories);
+  if (list.length === 0) {
+    const defaults = [
+      { slug: "3d-models", title: "مجسمات 3D", detail: "قطع تنطبع حسب الطلب وتضيف شخصية لمكانك.", tone: "cyan" },
+      { slug: "accessories", title: "إكسسوارات اللاعب", detail: "أشياء صغيرة، فرقها كبير في جوّ اللعب.", tone: "lime" },
+      { slug: "area-picks", title: "اختيارات Area", detail: "منتجات مختارة من عالم الألعاب والـ setup.", tone: "violet" },
+    ];
+    await db.insert(storeCategories).values(defaults);
+    return db.select().from(storeCategories);
+  }
+  return list;
+}
+
+export async function createStoreCategory(data: { slug: string; title: string; detail?: string; tone?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(storeCategories).values({
+    slug: data.slug,
+    title: data.title,
+    detail: data.detail || "",
+    tone: data.tone || "cyan",
+  });
+  const res = await db.select().from(storeCategories).where(eq(storeCategories.slug, data.slug)).limit(1);
+  return res[0];
+}
+
+export async function updateStoreCategory(id: number, data: { title: string; detail?: string; tone?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeCategories).set({
+    title: data.title,
+    detail: data.detail || "",
+    tone: data.tone || "cyan",
+  }).where(eq(storeCategories.id, id));
+  const res = await db.select().from(storeCategories).where(eq(storeCategories.id, id)).limit(1);
+  return res[0];
+}
+
+export async function deleteStoreCategory(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(storeCategories).where(eq(storeCategories.id, id));
+  return { success: true };
+}
+
+export async function listStoreProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  const list = await db.select().from(storeProducts);
+  if (list.length === 0) {
+    const defaults = [
+      {
+        categoryId: 1,
+        name: "حامل سماعة نيون RGB",
+        description: "حامل سماعة ألعاب عصري بإضاءة RGB متغيرة وتصميم فخم للمكتب.",
+        price: 25000,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-center-hero_de9fad3b.jpg",
+        isAvailable: 1,
+        stock: 15,
+      },
+      {
+        categoryId: 1,
+        name: "مجسم شخصية Dark Knight 3D",
+        description: "مجسم مطبوع بدقة عالية بتقنية الطباعة ثلاثية الأبعاد لشخصية أسطورية.",
+        price: 18000,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-store-hero_cfa38d93.jpg",
+        isAvailable: 1,
+        stock: 8,
+      },
+      {
+        categoryId: 2,
+        name: "ماوس باد احترافي Area Edition",
+        description: "سطح قماشي ناعم ومانع للانزلاق بحجم كبير يلبي احتياجات المحترفين.",
+        price: 15000,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-mark_6c38c50c.png",
+        isAvailable: 1,
+        stock: 25,
+      },
+    ];
+    await db.insert(storeProducts).values(defaults);
+    return db.select().from(storeProducts);
+  }
+  return list;
+}
+
+export async function createStoreProduct(data: {
+  categoryId: number;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl: string;
+  isAvailable?: number;
+  stock?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(storeProducts).values({
+    categoryId: data.categoryId,
+    name: data.name,
+    description: data.description || "",
+    price: data.price,
+    currency: "IQD",
+    imageUrl: data.imageUrl,
+    isAvailable: data.isAvailable ?? 1,
+    stock: data.stock ?? 10,
+  });
+  const res = await db.select().from(storeProducts).orderBy(desc(storeProducts.id)).limit(1);
+  return res[0];
+}
+
+export async function updateStoreProduct(id: number, data: {
+  categoryId: number;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl: string;
+  isAvailable: number;
+  stock: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeProducts).set({
+    categoryId: data.categoryId,
+    name: data.name,
+    description: data.description || "",
+    price: data.price,
+    imageUrl: data.imageUrl,
+    isAvailable: data.isAvailable,
+    stock: data.stock,
+  }).where(eq(storeProducts.id, id));
+  const res = await db.select().from(storeProducts).where(eq(storeProducts.id, id)).limit(1);
+  return res[0];
+}
+
+export async function deleteStoreProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(storeProducts).where(eq(storeProducts.id, id));
+  return { success: true };
 }

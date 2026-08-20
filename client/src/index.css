@@ -411,8 +411,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .admin-page { min-height: 100vh; padding: 48px max(24px, calc((100vw - 1240px) / 2)) 80px; background: #080a10; color: var(--area-ink); }
 .admin-page::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .16; background-image: url("/manus-storage/area50-grid-texture_17fc3c46.png"); background-size: 460px; mix-blend-mode: screen; }
 .admin-page > * { position: relative; z-index: 1; }
-.admin-page--login { display: grid; place-items: center; padding: 24px; }
-.admin-login-card { width: min(100%, 470px); padding: 42px; background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #11141b; border: 1px solid rgba(216,244,58,.24); box-shadow: 18px 20px 0 rgba(216,244,58,.05); direction: rtl; }
+.admin-page--login { display: grid; place-items: center; width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; padding: 24px; }
+.admin-login-card { width: 100%; max-width: 470px; min-width: 0; box-sizing: border-box; padding: 42px; background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #11141b; border: 1px solid rgba(216,244,58,.24); box-shadow: 18px 20px 0 rgba(216,244,58,.05); direction: rtl; }
 .admin-back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--area-muted); font-size: 11px; transition: color .18s var(--ease-out); }
 .admin-back-link:hover { color: var(--area-lime); }
 .admin-lock-mark { width: 58px; height: 58px; display: grid; place-items: center; margin: 54px 0 23px; border: 1px solid var(--area-lime); color: var(--area-lime); transform: rotate(-5deg); }
@@ -484,3 +484,142 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .admin-booking-row { grid-template-columns: 1fr; gap: 13px; padding: 20px 0; }
   .admin-booking-actions { flex-direction: row; align-items: center; justify-content: space-between; }
 }
+
+/* Dynamic Area Store catalog and admin inventory controls. */
+.store-cart-trigger { position: relative; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(84,217,208,.35); background: rgba(84,217,208,.06); color: var(--area-aqua); padding: 10px 13px; font: 600 10px "Noto Kufi Arabic", sans-serif; cursor: pointer; transition: background .2s, border-color .2s, transform .2s; }
+.store-cart-trigger:hover { background: rgba(84,217,208,.14); border-color: var(--area-aqua); transform: translateY(-2px); }
+.store-cart-trigger b { min-width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--area-aqua); color: var(--area-bg); font: 700 10px "Rajdhani", sans-serif; }
+.store-catalog { padding-top: 120px; }
+.store-catalog-heading { display: flex; align-items: end; justify-content: space-between; gap: 40px; direction: rtl; margin-bottom: 30px; }
+.store-catalog-heading h2 { margin: 15px 0 0; color: var(--area-ink); font: 800 clamp(38px, 5vw, 72px)/1 "Noto Kufi Arabic", sans-serif; letter-spacing: -.09em; }
+.store-catalog-heading h2 em { color: var(--area-aqua); font-style: normal; }
+.store-catalog-heading > p { max-width: 310px; margin: 0 0 4px; color: var(--area-muted); font-size: 11px; line-height: 2; }
+.store-category-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 13px 0; border-top: 1px solid rgba(255,255,255,.14); border-bottom: 1px solid rgba(255,255,255,.14); }
+.store-category-bar button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.14); background: transparent; color: var(--area-muted); padding: 9px 13px; font: 600 10px "Noto Kufi Arabic", sans-serif; cursor: pointer; transition: color .2s, background .2s, border-color .2s; }
+.store-category-bar button:hover, .store-category-bar button.is-active { border-color: var(--area-aqua); background: rgba(84,217,208,.1); color: var(--area-aqua); }
+.store-category-bar small { color: var(--area-faint); font: 700 11px "Rajdhani", sans-serif; }
+.store-product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 26px; }
+.store-product-card { overflow: hidden; background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.012)), var(--area-panel); border: 1px solid rgba(255,255,255,.11); opacity: 0; animation: rise-in .55s var(--ease-out) forwards; transition: transform .25s var(--ease-out), border-color .25s, box-shadow .25s; }
+.store-product-card:hover { transform: translateY(-5px); border-color: rgba(84,217,208,.5); box-shadow: 0 18px 50px rgba(0,0,0,.22); }
+.store-product-card__image { position: relative; height: 245px; overflow: hidden; background: #0b1015; }
+.store-product-card__image img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .5s var(--ease-out); }
+.store-product-card:hover .store-product-card__image img { transform: scale(1.055); }
+.store-product-card__image span { position: absolute; top: 12px; right: 12px; padding: 5px 8px; background: rgba(8,10,16,.75); color: var(--area-aqua); font: 600 9px "Noto Kufi Arabic", sans-serif; backdrop-filter: blur(8px); }
+.store-product-card__body { padding: 18px; }
+.store-product-card__category { color: var(--area-aqua); font: 600 9px "Rajdhani", "Noto Kufi Arabic", sans-serif; letter-spacing: .08em; }
+.store-product-card h3 { min-height: 52px; margin: 10px 0 0; color: var(--area-ink); font: 700 18px/1.5 "Noto Kufi Arabic", sans-serif; letter-spacing: -.04em; }
+.store-product-card p { min-height: 49px; margin: 7px 0 18px; color: var(--area-muted); font-size: 10px; line-height: 1.9; }
+.store-product-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 14px; }
+.store-product-card__footer strong { color: var(--area-ink); font: 700 16px "Rajdhani", "Noto Kufi Arabic", sans-serif; direction: ltr; }
+.store-product-card__footer button, .store-cart-summary button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--area-aqua); color: var(--area-bg); padding: 10px 11px; font: 700 10px "Noto Kufi Arabic", sans-serif; cursor: pointer; transition: transform .18s var(--ease-out), background .18s; }
+.store-product-card__footer button:hover, .store-cart-summary button:hover { background: #8cf2eb; transform: translateY(-2px); }
+.store-empty { margin-top: 26px; padding: 38px; border: 1px dashed rgba(84,217,208,.3); background: rgba(84,217,208,.04); color: var(--area-muted); text-align: center; }
+.store-empty p { margin: 0 0 5px; color: var(--area-ink); font-size: 14px; }
+.store-empty span { font-size: 10px; }
+.store-note--wide { margin-top: 30px; padding: 20px 0 0; border-top: 1px solid rgba(255,255,255,.12); }
+.store-cart-backdrop { position: fixed; inset: 0; z-index: 9; background: rgba(0,0,0,.58); backdrop-filter: blur(3px); }
+.store-cart-drawer { position: fixed; top: 0; bottom: 0; right: 0; z-index: 10; width: min(430px, 100%); display: flex; flex-direction: column; padding: 31px 25px; background: #10141b; border-left: 1px solid rgba(84,217,208,.35); box-shadow: -18px 0 55px rgba(0,0,0,.35); transform: translateX(105%); transition: transform .32s var(--ease-out); }
+.store-cart-drawer.is-open { transform: translateX(0); }
+.store-cart-drawer__head { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,.13); }
+.store-cart-drawer__head h2 { margin: 10px 0 0; color: var(--area-ink); font: 700 27px "Noto Kufi Arabic", sans-serif; letter-spacing: -.06em; }
+.store-cart-drawer__head > button { display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); background: transparent; color: var(--area-muted); width: 34px; height: 34px; cursor: pointer; }
+.store-cart-drawer__head > button svg { transform: rotate(180deg); }
+.store-cart-list { flex: 1; overflow: auto; padding: 20px 0; }
+.store-cart-item { display: grid; grid-template-columns: 68px 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,.09); }
+.store-cart-item img { width: 68px; height: 68px; object-fit: cover; background: #0b1015; }
+.store-cart-item strong { display: block; color: var(--area-ink); font-size: 11px; line-height: 1.7; }
+.store-cart-item > div > span { display: block; margin-top: 3px; color: var(--area-aqua); font: 600 12px "Rajdhani", sans-serif; direction: ltr; text-align: right; }
+.store-cart-quantity { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.store-cart-quantity button { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.16); background: transparent; color: var(--area-muted); cursor: pointer; }
+.store-cart-quantity button:hover { border-color: var(--area-aqua); color: var(--area-aqua); }
+.store-cart-quantity b { min-width: 14px; color: var(--area-ink); text-align: center; font: 700 13px "Rajdhani", sans-serif; }
+.store-cart-quantity .store-cart-remove { margin-right: auto; border-color: transparent; color: #ff8fbd; }
+.store-cart-summary { padding-top: 20px; border-top: 1px solid rgba(255,255,255,.13); }
+.store-cart-summary > span { color: var(--area-muted); font-size: 10px; }
+.store-cart-summary > strong { display: block; margin: 7px 0 15px; color: var(--area-ink); font: 700 27px "Rajdhani", sans-serif; direction: ltr; text-align: right; }
+.store-cart-summary button { width: 100%; }
+.store-cart-empty { display: grid; place-items: center; align-content: center; gap: 8px; flex: 1; color: var(--area-aqua); text-align: center; }
+.store-cart-empty p { margin: 6px 0 0; color: var(--area-ink); font-size: 13px; }
+.store-cart-empty span { color: var(--area-muted); font-size: 10px; }
+
+.admin-store-panel { margin-top: 58px; }
+.admin-store-grid { display: grid; grid-template-columns: .72fr 1.28fr; gap: 12px; direction: ltr; }
+.admin-form-card { direction: rtl; padding: 22px; background: linear-gradient(145deg, rgba(84,217,208,.07), rgba(255,255,255,.02)), var(--area-panel); border: 1px solid rgba(84,217,208,.22); }
+.admin-product-form { border-color: rgba(216,244,58,.23); }
+.admin-form-card__title { display: flex; align-items: center; gap: 9px; margin-bottom: 20px; color: var(--area-aqua); }
+.admin-product-form .admin-form-card__title { color: var(--area-lime); }
+.admin-form-card__title h3 { margin: 0; color: var(--area-ink); font-size: 17px; font-weight: 700; }
+.admin-form-card label { display: block; margin-top: 13px; color: var(--area-muted); font-size: 10px; }
+.admin-form-card input:not([type="checkbox"]), .admin-form-card textarea, .admin-form-card select { width: 100%; margin-top: 7px; padding: 10px 11px; border: 1px solid rgba(255,255,255,.15); outline: none; background: #0d1017; color: var(--area-ink); font: 500 11px/1.8 "Noto Kufi Arabic", sans-serif; color-scheme: dark; }
+.admin-form-card textarea { min-height: 72px; resize: vertical; }
+.admin-form-card input:focus, .admin-form-card textarea:focus, .admin-form-card select:focus { border-color: var(--area-aqua); box-shadow: 0 0 0 3px rgba(84,217,208,.08); }
+.admin-form-card input:disabled { opacity: .55; cursor: not-allowed; }
+.admin-form-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.admin-form-actions { display: flex; gap: 8px; margin-top: 17px; }
+.admin-primary-action, .admin-secondary-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 14px; border: 1px solid transparent; font: 700 10px "Noto Kufi Arabic", sans-serif; cursor: pointer; }
+.admin-primary-action { background: var(--area-aqua); color: var(--area-bg); }
+.admin-primary-action:hover { background: #8cf2eb; }
+.admin-primary-action:disabled { opacity: .58; cursor: wait; }
+.admin-secondary-action { border-color: rgba(255,255,255,.17); background: transparent; color: var(--area-muted); }
+.admin-secondary-action:hover { border-color: var(--area-ink); color: var(--area-ink); }
+.admin-mini-list { margin-top: 20px; border-top: 1px solid rgba(255,255,255,.11); }
+.admin-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+.admin-mini-row span:first-child { display: flex; flex-direction: column; gap: 2px; }
+.admin-mini-row strong { color: var(--area-ink); font-size: 10px; }
+.admin-mini-row small { color: var(--area-faint); font: 10px "Rajdhani", sans-serif; }
+.admin-mini-row span:last-child { display: flex; gap: 5px; }
+.admin-mini-row button, .admin-product-actions button { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.14); background: transparent; color: var(--area-muted); cursor: pointer; }
+.admin-mini-row button:hover, .admin-product-actions button:hover { border-color: var(--area-aqua); color: var(--area-aqua); }
+.admin-mini-row button:last-child:hover, .admin-product-actions button:last-child:hover { border-color: #ff8fbd; color: #ff8fbd; }
+.admin-input-with-icon { position: relative; }
+.admin-input-with-icon svg { position: absolute; top: 19px; right: 11px; color: var(--area-faint); }
+.admin-input-with-icon input { padding-right: 34px !important; direction: ltr; text-align: left; }
+.admin-upload-label { display: flex !important; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px dashed rgba(84,217,208,.35); background: rgba(84,217,208,.04); cursor: pointer; }
+.admin-upload-label > span { display: inline-flex; align-items: center; gap: 7px; color: var(--area-aqua); }
+.admin-upload-label input { width: auto !important; margin: 0 !important; border: 0 !important; padding: 0 !important; }
+.admin-upload-label small { width: 100%; color: var(--area-faint); font-size: 9px; }
+.admin-checkbox-label { display: flex !important; align-items: center; gap: 8px; color: var(--area-ink) !important; cursor: pointer; }
+.admin-checkbox-label input { accent-color: var(--area-aqua); }
+.admin-products-table-wrap { margin-top: 22px; padding: 21px; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.11); direction: rtl; }
+.admin-products-table-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; }
+.admin-products-table-heading h3 { margin: 0; color: var(--area-ink); font-size: 16px; }
+.admin-products-table-heading span { color: var(--area-faint); font-size: 9px; }
+.admin-products-table { border-top: 1px solid rgba(255,255,255,.11); }
+.admin-product-row { display: grid; grid-template-columns: 66px 1fr auto auto; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.09); }
+.admin-product-row > img { width: 66px; height: 66px; object-fit: cover; background: #0b1015; }
+.admin-product-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.admin-product-info strong { overflow: hidden; color: var(--area-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-product-info span { color: var(--area-aqua); font: 10px "Rajdhani", "Noto Kufi Arabic", sans-serif; }
+.admin-product-info small { overflow: hidden; color: var(--area-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-availability { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; color: var(--area-aqua); font-size: 9px; }
+.admin-availability.is-hidden { color: #ff8fbd; }
+.admin-product-row.is-hidden { opacity: .62; }
+.admin-product-actions { display: flex; gap: 6px; }
+
+@media (max-width: 800px) {
+  .store-catalog { padding-top: 80px; }
+  .store-catalog-heading { align-items: flex-start; flex-direction: column; gap: 15px; }
+  .store-product-grid { grid-template-columns: repeat(2, 1fr); }
+  .admin-store-grid { grid-template-columns: 1fr; }
+  .admin-header-actions { flex-wrap: wrap; }
+  .admin-product-row { grid-template-columns: 55px 1fr auto; }
+  .admin-product-row > img { width: 55px; height: 55px; }
+  .admin-availability { grid-column: 2; }
+  .admin-product-actions { grid-column: 3; grid-row: 1 / span 2; }
+}
+@media (max-width: 520px) {
+  .store-product-grid { grid-template-columns: 1fr; }
+  .store-product-card__image { height: 220px; }
+  .store-category-bar { overflow-x: auto; flex-wrap: nowrap; }
+  .store-category-bar button { flex: 0 0 auto; }
+  .admin-form-two-col { grid-template-columns: 1fr; }
+  .admin-products-table-wrap { padding: 15px; }
+}
+
+.store-inline-error { margin-bottom: 12px; padding: 10px 13px; border: 1px solid rgba(255,143,189,.35); background: rgba(255,143,189,.06); color: #ffb3d0; font-size: 10px; }
+.store-error { display: grid; place-items: center; gap: 7px; margin-top: 26px; padding: 42px 24px; border: 1px dashed rgba(255,143,189,.34); background: rgba(255,143,189,.04); text-align: center; }
+.store-error p { margin: 0; color: var(--area-ink); font-size: 14px; }
+.store-error span { color: var(--area-muted); font-size: 10px; }
+.store-error button { display: inline-flex; align-items: center; gap: 7px; margin-top: 7px; border: 1px solid rgba(84,217,208,.45); background: transparent; color: var(--area-aqua); padding: 9px 13px; font: 600 10px "Noto Kufi Arabic", sans-serif; cursor: pointer; }
+.store-error button:hover { background: rgba(84,217,208,.1); }
+.store-cart-quantity button:disabled { opacity: .35; cursor: not-allowed; }

@@ -29518,7 +29518,7 @@ __export(external_exports, {
   jwt: () => jwt,
   keyof: () => keyof,
   ksuid: () => ksuid2,
-  lazy: () => lazy2,
+  lazy: () => lazy,
   length: () => _length,
   literal: () => literal,
   locales: () => locales_exports,
@@ -41788,7 +41788,7 @@ var ZodLazy = /* @__PURE__ */ $constructor("ZodLazy", (inst, def) => {
   ZodType.init(inst, def);
   inst.unwrap = () => inst._zod.def.getter();
 });
-function lazy2(getter) {
+function lazy(getter) {
   return new ZodLazy({
     type: "lazy",
     getter
@@ -41856,7 +41856,7 @@ var stringbool = (...args) => _stringbool({
   String: ZodString
 }, ...args);
 function json(params) {
-  const jsonSchema = lazy2(() => {
+  const jsonSchema = lazy(() => {
     return union([string2(params), number2(), boolean2(), _null3(), array(jsonSchema), record(string2(), jsonSchema)]);
   });
   return jsonSchema;
@@ -42162,6 +42162,9 @@ function clearAdminSession(res, req) {
   });
 }
 
+// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/mysql2/driver.js
+var import_mysql2 = require("mysql2");
+
 // node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/entity.js
 var entityKind = Symbol.for("drizzle:entityKind");
 var hasOwnEntityKind = Symbol.for("drizzle:hasOwnEntityKind");
@@ -42188,6 +42191,37 @@ function is(value, type) {
   }
   return false;
 }
+
+// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/logger.js
+var ConsoleLogWriter = class {
+  static [entityKind] = "ConsoleLogWriter";
+  write(message2) {
+    console.log(message2);
+  }
+};
+var DefaultLogger = class {
+  static [entityKind] = "DefaultLogger";
+  writer;
+  constructor(config2) {
+    this.writer = config2?.writer ?? new ConsoleLogWriter();
+  }
+  logQuery(query, params) {
+    const stringifiedParams = params.map((p) => {
+      try {
+        return JSON.stringify(p);
+      } catch {
+        return String(p);
+      }
+    });
+    const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(", ")}]` : "";
+    this.writer.write(`Query: ${query}${paramsStr}`);
+  }
+};
+var NoopLogger = class {
+  static [entityKind] = "NoopLogger";
+  logQuery() {
+  }
+};
 
 // node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/column.js
 var Column = class {
@@ -43390,61 +43424,116 @@ function mapColumnsInSQLToAlias(query, alias) {
   }));
 }
 
-// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/errors.js
-var DrizzleError = class extends Error {
-  static [entityKind] = "DrizzleError";
-  constructor({ message: message2, cause }) {
-    super(message2);
-    this.name = "DrizzleError";
-    this.cause = cause;
+// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/selection-proxy.js
+var SelectionProxyHandler = class _SelectionProxyHandler {
+  static [entityKind] = "SelectionProxyHandler";
+  config;
+  constructor(config2) {
+    this.config = { ...config2 };
   }
-};
-var DrizzleQueryError = class _DrizzleQueryError extends Error {
-  constructor(query, params, cause) {
-    super(`Failed query: ${query}
-params: ${params}`);
-    this.query = query;
-    this.params = params;
-    this.cause = cause;
-    Error.captureStackTrace(this, _DrizzleQueryError);
-    if (cause) this.cause = cause;
-  }
-};
-var TransactionRollbackError = class extends DrizzleError {
-  static [entityKind] = "TransactionRollbackError";
-  constructor() {
-    super({ message: "Rollback" });
+  get(subquery, prop) {
+    if (prop === "_") {
+      return {
+        ...subquery["_"],
+        selectedFields: new Proxy(
+          subquery._.selectedFields,
+          this
+        )
+      };
+    }
+    if (prop === ViewBaseConfig) {
+      return {
+        ...subquery[ViewBaseConfig],
+        selectedFields: new Proxy(
+          subquery[ViewBaseConfig].selectedFields,
+          this
+        )
+      };
+    }
+    if (typeof prop === "symbol") {
+      return subquery[prop];
+    }
+    const columns = is(subquery, Subquery) ? subquery._.selectedFields : is(subquery, View) ? subquery[ViewBaseConfig].selectedFields : subquery;
+    const value = columns[prop];
+    if (is(value, SQL.Aliased)) {
+      if (this.config.sqlAliasedBehavior === "sql" && !value.isSelectionField) {
+        return value.sql;
+      }
+      const newValue = value.clone();
+      newValue.isSelectionField = true;
+      return newValue;
+    }
+    if (is(value, SQL)) {
+      if (this.config.sqlBehavior === "sql") {
+        return value;
+      }
+      throw new Error(
+        `You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.`
+      );
+    }
+    if (is(value, Column)) {
+      if (this.config.alias) {
+        return new Proxy(
+          value,
+          new ColumnAliasProxyHandler(
+            new Proxy(
+              value.table,
+              new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false)
+            )
+          )
+        );
+      }
+      return value;
+    }
+    if (typeof value !== "object" || value === null) {
+      return value;
+    }
+    return new Proxy(value, new _SelectionProxyHandler(this.config));
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/logger.js
-var ConsoleLogWriter = class {
-  static [entityKind] = "ConsoleLogWriter";
-  write(message2) {
-    console.log(message2);
+// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/mysql-core/query-builders/count.js
+var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
+  constructor(params) {
+    super(_MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+    this.params = params;
+    this.mapWith(Number);
+    this.session = params.session;
+    this.sql = _MySqlCountBuilder.buildCount(
+      params.source,
+      params.filters
+    );
   }
-};
-var DefaultLogger = class {
-  static [entityKind] = "DefaultLogger";
-  writer;
-  constructor(config2) {
-    this.writer = config2?.writer ?? new ConsoleLogWriter();
+  sql;
+  static [entityKind] = "MySqlCountBuilder";
+  [Symbol.toStringTag] = "MySqlCountBuilder";
+  session;
+  static buildEmbeddedCount(source, filters) {
+    return sql`(select count(*) from ${source}${sql.raw(" where ").if(filters)}${filters})`;
   }
-  logQuery(query, params) {
-    const stringifiedParams = params.map((p) => {
-      try {
-        return JSON.stringify(p);
-      } catch {
-        return String(p);
+  static buildCount(source, filters) {
+    return sql`select count(*) as count from ${source}${sql.raw(" where ").if(filters)}${filters}`;
+  }
+  then(onfulfilled, onrejected) {
+    return Promise.resolve(this.session.count(this.sql)).then(
+      onfulfilled,
+      onrejected
+    );
+  }
+  catch(onRejected) {
+    return this.then(void 0, onRejected);
+  }
+  finally(onFinally) {
+    return this.then(
+      (value) => {
+        onFinally?.();
+        return value;
+      },
+      (reason) => {
+        onFinally?.();
+        throw reason;
       }
-    });
-    const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(", ")}]` : "";
-    this.writer.write(`Query: ${query}${paramsStr}`);
-  }
-};
-var NoopLogger = class {
-  static [entityKind] = "NoopLogger";
-  logQuery() {
+    );
   }
 };
 
@@ -43469,6 +43558,33 @@ var QueryPromise = class {
   }
   then(onFulfilled, onRejected) {
     return this.execute().then(onFulfilled, onRejected);
+  }
+};
+
+// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/errors.js
+var DrizzleError = class extends Error {
+  static [entityKind] = "DrizzleError";
+  constructor({ message: message2, cause }) {
+    super(message2);
+    this.name = "DrizzleError";
+    this.cause = cause;
+  }
+};
+var DrizzleQueryError = class _DrizzleQueryError extends Error {
+  constructor(query, params, cause) {
+    super(`Failed query: ${query}
+params: ${params}`);
+    this.query = query;
+    this.params = params;
+    this.cause = cause;
+    Error.captureStackTrace(this, _DrizzleQueryError);
+    if (cause) this.cause = cause;
+  }
+};
+var TransactionRollbackError = class extends DrizzleError {
+  static [entityKind] = "TransactionRollbackError";
+  constructor() {
+    super({ message: "Rollback" });
   }
 };
 
@@ -44054,122 +44170,6 @@ function mapRelationalRow(tablesConfig, tableConfig, row, buildQueryResultSelect
   }
   return result;
 }
-
-// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/mysql2/driver.js
-var import_mysql2 = require("mysql2");
-
-// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/selection-proxy.js
-var SelectionProxyHandler = class _SelectionProxyHandler {
-  static [entityKind] = "SelectionProxyHandler";
-  config;
-  constructor(config2) {
-    this.config = { ...config2 };
-  }
-  get(subquery, prop) {
-    if (prop === "_") {
-      return {
-        ...subquery["_"],
-        selectedFields: new Proxy(
-          subquery._.selectedFields,
-          this
-        )
-      };
-    }
-    if (prop === ViewBaseConfig) {
-      return {
-        ...subquery[ViewBaseConfig],
-        selectedFields: new Proxy(
-          subquery[ViewBaseConfig].selectedFields,
-          this
-        )
-      };
-    }
-    if (typeof prop === "symbol") {
-      return subquery[prop];
-    }
-    const columns = is(subquery, Subquery) ? subquery._.selectedFields : is(subquery, View) ? subquery[ViewBaseConfig].selectedFields : subquery;
-    const value = columns[prop];
-    if (is(value, SQL.Aliased)) {
-      if (this.config.sqlAliasedBehavior === "sql" && !value.isSelectionField) {
-        return value.sql;
-      }
-      const newValue = value.clone();
-      newValue.isSelectionField = true;
-      return newValue;
-    }
-    if (is(value, SQL)) {
-      if (this.config.sqlBehavior === "sql") {
-        return value;
-      }
-      throw new Error(
-        `You tried to reference "${prop}" field from a subquery, which is a raw SQL field, but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.`
-      );
-    }
-    if (is(value, Column)) {
-      if (this.config.alias) {
-        return new Proxy(
-          value,
-          new ColumnAliasProxyHandler(
-            new Proxy(
-              value.table,
-              new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false)
-            )
-          )
-        );
-      }
-      return value;
-    }
-    if (typeof value !== "object" || value === null) {
-      return value;
-    }
-    return new Proxy(value, new _SelectionProxyHandler(this.config));
-  }
-};
-
-// node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/mysql-core/query-builders/count.js
-var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
-  constructor(params) {
-    super(_MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
-    this.params = params;
-    this.mapWith(Number);
-    this.session = params.session;
-    this.sql = _MySqlCountBuilder.buildCount(
-      params.source,
-      params.filters
-    );
-  }
-  sql;
-  static [entityKind] = "MySqlCountBuilder";
-  [Symbol.toStringTag] = "MySqlCountBuilder";
-  session;
-  static buildEmbeddedCount(source, filters) {
-    return sql`(select count(*) from ${source}${sql.raw(" where ").if(filters)}${filters})`;
-  }
-  static buildCount(source, filters) {
-    return sql`select count(*) as count from ${source}${sql.raw(" where ").if(filters)}${filters}`;
-  }
-  then(onfulfilled, onrejected) {
-    return Promise.resolve(this.session.count(this.sql)).then(
-      onfulfilled,
-      onrejected
-    );
-  }
-  catch(onRejected) {
-    return this.then(void 0, onRejected);
-  }
-  finally(onFinally) {
-    return this.then(
-      (value) => {
-        onFinally?.();
-        return value;
-      },
-      (reason) => {
-        onFinally?.();
-        throw reason;
-      }
-    );
-  }
-};
 
 // node_modules/.pnpm/drizzle-orm@0.44.7_mysql2@3.23.4_@types+node@24.7.0_/node_modules/drizzle-orm/mysql-core/foreign-keys.js
 var ForeignKeyBuilder2 = class {
@@ -48409,6 +48409,27 @@ var roomPrices = mysqlTable("roomPrices", {
   currency: varchar("currency", { length: 8 }).default("IQD").notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull()
 });
+var storeCategories = mysqlTable("storeCategories", {
+  id: int2("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 64 }).notNull().unique(),
+  title: varchar("title", { length: 120 }).notNull(),
+  detail: text("detail"),
+  tone: varchar("tone", { length: 32 }).default("cyan").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull()
+});
+var storeProducts = mysqlTable("storeProducts", {
+  id: int2("id").autoincrement().primaryKey(),
+  categoryId: int2("categoryId").notNull(),
+  name: varchar("name", { length: 180 }).notNull(),
+  description: text("description"),
+  price: int2("price").notNull(),
+  currency: varchar("currency", { length: 8 }).default("IQD").notNull(),
+  imageUrl: text("imageUrl").notNull(),
+  isAvailable: tinyint("isAvailable").default(1).notNull(),
+  stock: int2("stock").default(10).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull()
+});
 
 // server/db.ts
 var _db = null;
@@ -48434,41 +48455,24 @@ async function upsertUser(user) {
     console.warn("[Database] Cannot upsert user: database not available");
     return;
   }
-  const values = { openId: user.openId };
-  const updateSet = {};
-  const textFields = ["name", "email", "loginMethod"];
-  for (const field of textFields) {
-    if (user[field] !== void 0) {
-      const normalized = user[field] ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
+  await db.insert(users).values(user).onDuplicateKeyUpdate({
+    set: {
+      name: user.name,
+      email: user.email,
+      lastSignedIn: /* @__PURE__ */ new Date()
     }
-  }
-  if (user.lastSignedIn !== void 0) {
-    values.lastSignedIn = user.lastSignedIn;
-    updateSet.lastSignedIn = user.lastSignedIn;
-  }
-  if (user.role !== void 0) {
-    values.role = user.role;
-    updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
-  values.lastSignedIn ??= /* @__PURE__ */ new Date();
-  if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = /* @__PURE__ */ new Date();
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+  });
 }
 async function getUserByOpenId(openId) {
   const db = await getDb();
-  if (!db) return void 0;
+  if (!db) return null;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
+  return result[0] || null;
 }
-async function createBooking(input) {
+async function createBooking(data) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(bookings).values(input);
+  await db.insert(bookings).values(data);
   const result = await db.select().from(bookings).orderBy(desc(bookings.id)).limit(1);
   return result[0];
 }
@@ -48508,15 +48512,202 @@ async function updateRoomPrice(room, pricePerHour) {
   const result = await db.select().from(roomPrices).where(eq(roomPrices.room, room)).limit(1);
   return result[0];
 }
+async function listStoreCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  const list = await db.select().from(storeCategories);
+  if (list.length === 0) {
+    const defaults2 = [
+      { slug: "3d-models", title: "\u0645\u062C\u0633\u0645\u0627\u062A 3D", detail: "\u0642\u0637\u0639 \u062A\u0646\u0637\u0628\u0639 \u062D\u0633\u0628 \u0627\u0644\u0637\u0644\u0628 \u0648\u062A\u0636\u064A\u0641 \u0634\u062E\u0635\u064A\u0629 \u0644\u0645\u0643\u0627\u0646\u0643.", tone: "cyan" },
+      { slug: "accessories", title: "\u0625\u0643\u0633\u0633\u0648\u0627\u0631\u0627\u062A \u0627\u0644\u0644\u0627\u0639\u0628", detail: "\u0623\u0634\u064A\u0627\u0621 \u0635\u063A\u064A\u0631\u0629\u060C \u0641\u0631\u0642\u0647\u0627 \u0643\u0628\u064A\u0631 \u0641\u064A \u062C\u0648\u0651 \u0627\u0644\u0644\u0639\u0628.", tone: "lime" },
+      { slug: "area-picks", title: "\u0627\u062E\u062A\u064A\u0627\u0631\u0627\u062A Area", detail: "\u0645\u0646\u062A\u062C\u0627\u062A \u0645\u062E\u062A\u0627\u0631\u0629 \u0645\u0646 \u0639\u0627\u0644\u0645 \u0627\u0644\u0623\u0644\u0639\u0627\u0628 \u0648\u0627\u0644\u0640 setup.", tone: "violet" }
+    ];
+    await db.insert(storeCategories).values(defaults2);
+    return db.select().from(storeCategories);
+  }
+  return list;
+}
+async function createStoreCategory(data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(storeCategories).values({
+    slug: data.slug,
+    title: data.title,
+    detail: data.detail || "",
+    tone: data.tone || "cyan"
+  });
+  const res = await db.select().from(storeCategories).where(eq(storeCategories.slug, data.slug)).limit(1);
+  return res[0];
+}
+async function updateStoreCategory(id, data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeCategories).set({
+    title: data.title,
+    detail: data.detail || "",
+    tone: data.tone || "cyan"
+  }).where(eq(storeCategories.id, id));
+  const res = await db.select().from(storeCategories).where(eq(storeCategories.id, id)).limit(1);
+  return res[0];
+}
+async function deleteStoreCategory(id) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(storeCategories).where(eq(storeCategories.id, id));
+  return { success: true };
+}
+async function listStoreProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  const list = await db.select().from(storeProducts);
+  if (list.length === 0) {
+    const defaults2 = [
+      {
+        categoryId: 1,
+        name: "\u062D\u0627\u0645\u0644 \u0633\u0645\u0627\u0639\u0629 \u0646\u064A\u0648\u0646 RGB",
+        description: "\u062D\u0627\u0645\u0644 \u0633\u0645\u0627\u0639\u0629 \u0623\u0644\u0639\u0627\u0628 \u0639\u0635\u0631\u064A \u0628\u0625\u0636\u0627\u0621\u0629 RGB \u0645\u062A\u063A\u064A\u0631\u0629 \u0648\u062A\u0635\u0645\u064A\u0645 \u0641\u062E\u0645 \u0644\u0644\u0645\u0643\u062A\u0628.",
+        price: 25e3,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-center-hero_de9fad3b.jpg",
+        isAvailable: 1,
+        stock: 15
+      },
+      {
+        categoryId: 1,
+        name: "\u0645\u062C\u0633\u0645 \u0634\u062E\u0635\u064A\u0629 Dark Knight 3D",
+        description: "\u0645\u062C\u0633\u0645 \u0645\u0637\u0628\u0648\u0639 \u0628\u062F\u0642\u0629 \u0639\u0627\u0644\u064A\u0629 \u0628\u062A\u0642\u0646\u064A\u0629 \u0627\u0644\u0637\u0628\u0627\u0639\u0629 \u062B\u0644\u0627\u062B\u064A\u0629 \u0627\u0644\u0623\u0628\u0639\u0627\u062F \u0644\u0634\u062E\u0635\u064A\u0629 \u0623\u0633\u0637\u0648\u0631\u064A\u0629.",
+        price: 18e3,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-store-hero_cfa38d93.jpg",
+        isAvailable: 1,
+        stock: 8
+      },
+      {
+        categoryId: 2,
+        name: "\u0645\u0627\u0648\u0633 \u0628\u0627\u062F \u0627\u062D\u062A\u0631\u0627\u0641\u064A Area Edition",
+        description: "\u0633\u0637\u062D \u0642\u0645\u0627\u0634\u064A \u0646\u0627\u0639\u0645 \u0648\u0645\u0627\u0646\u0639 \u0644\u0644\u0627\u0646\u0632\u0644\u0627\u0642 \u0628\u062D\u062C\u0645 \u0643\u0628\u064A\u0631 \u064A\u0644\u0628\u064A \u0627\u062D\u062A\u064A\u0627\u062C\u0627\u062A \u0627\u0644\u0645\u062D\u062A\u0631\u0641\u064A\u0646.",
+        price: 15e3,
+        currency: "IQD",
+        imageUrl: "/manus-storage/area50-mark_6c38c50c.png",
+        isAvailable: 1,
+        stock: 25
+      }
+    ];
+    await db.insert(storeProducts).values(defaults2);
+    return db.select().from(storeProducts);
+  }
+  return list;
+}
+async function createStoreProduct(data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(storeProducts).values({
+    categoryId: data.categoryId,
+    name: data.name,
+    description: data.description || "",
+    price: data.price,
+    currency: "IQD",
+    imageUrl: data.imageUrl,
+    isAvailable: data.isAvailable ?? 1,
+    stock: data.stock ?? 10
+  });
+  const res = await db.select().from(storeProducts).orderBy(desc(storeProducts.id)).limit(1);
+  return res[0];
+}
+async function updateStoreProduct(id, data) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(storeProducts).set({
+    categoryId: data.categoryId,
+    name: data.name,
+    description: data.description || "",
+    price: data.price,
+    imageUrl: data.imageUrl,
+    isAvailable: data.isAvailable,
+    stock: data.stock
+  }).where(eq(storeProducts.id, id));
+  const res = await db.select().from(storeProducts).where(eq(storeProducts.id, id)).limit(1);
+  return res[0];
+}
+async function deleteStoreProduct(id) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(storeProducts).where(eq(storeProducts.id, id));
+  return { success: true };
+}
+
+// server/storage.ts
+function getForgeConfig() {
+  const forgeUrl = ENV.forgeApiUrl;
+  const forgeKey = ENV.forgeApiKey;
+  if (!forgeUrl || !forgeKey) {
+    throw new Error(
+      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+    );
+  }
+  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
+}
+function normalizeKey(relKey) {
+  return relKey.replace(/^\/+/, "");
+}
+function appendHashSuffix(relKey) {
+  const hash2 = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const lastDot = relKey.lastIndexOf(".");
+  if (lastDot === -1) return `${relKey}_${hash2}`;
+  return `${relKey.slice(0, lastDot)}_${hash2}${relKey.slice(lastDot)}`;
+}
+async function storagePut(relKey, data, contentType = "application/octet-stream") {
+  const { forgeUrl, forgeKey } = getForgeConfig();
+  const key = appendHashSuffix(normalizeKey(relKey));
+  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
+  presignUrl.searchParams.set("path", key);
+  const presignResp = await fetch(presignUrl, {
+    headers: { Authorization: `Bearer ${forgeKey}` }
+  });
+  if (!presignResp.ok) {
+    const msg = await presignResp.text().catch(() => presignResp.statusText);
+    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
+  }
+  const { url: s3Url } = await presignResp.json();
+  if (!s3Url) throw new Error("Forge returned empty presign URL");
+  const blob = typeof data === "string" ? new Blob([data], { type: contentType }) : new Blob([data], { type: contentType });
+  const uploadResp = await fetch(s3Url, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: blob
+  });
+  if (!uploadResp.ok) {
+    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
+  }
+  return { key, url: `/manus-storage/${key}` };
+}
 
 // server/routers.ts
 var roomSchema = external_exports.enum(["vip", "vvip"]);
 var statusSchema = external_exports.enum(["pending", "confirmed", "cancelled"]);
+var toneSchema = external_exports.enum(["cyan", "lime", "violet", "amber"]);
+var imageTypeSchema = external_exports.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 var adminSessionProcedure = publicProcedure.use(async ({ ctx, next }) => {
   if (!isAdminRequest(ctx.req)) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin session required" });
   }
   return next();
+});
+var categoryInput = external_exports.object({
+  slug: external_exports.string().trim().min(2).max(64).regex(/^[a-z0-9-]+$/),
+  title: external_exports.string().trim().min(2).max(120),
+  detail: external_exports.string().trim().max(500).optional().default(""),
+  tone: toneSchema.default("cyan")
+});
+var categoryUpdateInput = categoryInput.omit({ slug: true });
+var productInput = external_exports.object({
+  categoryId: external_exports.number().int().positive(),
+  name: external_exports.string().trim().min(2).max(180),
+  description: external_exports.string().trim().max(1500).optional().default(""),
+  price: external_exports.number().int().min(0).max(1e8),
+  imageUrl: external_exports.string().trim().min(1).max(2e3),
+  isAvailable: external_exports.number().int().min(0).max(1).default(1),
+  stock: external_exports.number().int().min(0).max(1e6).default(10)
 });
 var appRouter = router({
   system: systemRouter,
@@ -48544,12 +48735,15 @@ var appRouter = router({
         message: "Booking end time must be after start time",
         path: ["endHour"]
       })
-    ).mutation(
-      ({ input }) => createBooking({
-        ...input,
-        status: "pending"
-      })
-    )
+    ).mutation(({ input }) => createBooking({ ...input, status: "pending" }))
+  }),
+  store: router({
+    categories: router({
+      list: publicProcedure.query(() => listStoreCategories())
+    }),
+    products: router({
+      list: publicProcedure.query(() => listStoreProducts())
+    })
   }),
   admin: router({
     login: publicProcedure.input(external_exports.object({ code: external_exports.string().min(1).max(120) })).mutation(({ ctx, input }) => {
@@ -48570,12 +48764,30 @@ var appRouter = router({
     }),
     prices: router({
       list: adminSessionProcedure.query(() => listRoomPrices()),
-      update: adminSessionProcedure.input(
-        external_exports.object({
-          room: roomSchema,
-          pricePerHour: external_exports.number().int().min(0).max(1e8)
-        })
-      ).mutation(({ input }) => updateRoomPrice(input.room, input.pricePerHour))
+      update: adminSessionProcedure.input(external_exports.object({ room: roomSchema, pricePerHour: external_exports.number().int().min(0).max(1e8) })).mutation(({ input }) => updateRoomPrice(input.room, input.pricePerHour))
+    }),
+    store: router({
+      categories: router({
+        list: adminSessionProcedure.query(() => listStoreCategories()),
+        create: adminSessionProcedure.input(categoryInput).mutation(({ input }) => createStoreCategory(input)),
+        update: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), data: categoryUpdateInput })).mutation(({ input }) => updateStoreCategory(input.id, input.data)),
+        delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteStoreCategory(input.id))
+      }),
+      products: router({
+        list: adminSessionProcedure.query(() => listStoreProducts()),
+        create: adminSessionProcedure.input(productInput).mutation(({ input }) => createStoreProduct(input)),
+        update: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), data: productInput })).mutation(({ input }) => updateStoreProduct(input.id, input.data)),
+        delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteStoreProduct(input.id))
+      }),
+      uploadImage: adminSessionProcedure.input(external_exports.object({ fileName: external_exports.string().trim().min(1).max(180), contentType: imageTypeSchema, base64: external_exports.string().min(1).max(7e6) })).mutation(async ({ input }) => {
+        const rawBase64 = input.base64.replace(/^data:[^;]+;base64,/, "");
+        const fileBuffer = Buffer.from(rawBase64, "base64");
+        if (fileBuffer.length > 5 * 1024 * 1024) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "\u062D\u062C\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u064A\u062C\u0628 \u0623\u0644\u0627 \u064A\u062A\u062C\u0627\u0648\u0632 5MB" });
+        }
+        const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+        return storagePut(`area50-store/${Date.now()}-${safeName}`, fileBuffer, input.contentType);
+      })
     })
   })
 });
