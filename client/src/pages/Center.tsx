@@ -69,7 +69,7 @@ type BookingFormProps = {
 };
 
 function BookingForm({ room, variant, price }: BookingFormProps) {
-  const [booking, setBooking] = useState({ guestName: "", date: "", startTime: "", endTime: "", guests: "" });
+  const [booking, setBooking] = useState({ guestName: "", roomNumber: "1", date: "", startTime: "", endTime: "", guests: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const startOptions = bookingHours.slice(0, -1);
@@ -81,6 +81,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
     const start = Number(booking.startTime);
     const end = Number(booking.endTime);
     const guests = Number(booking.guests);
+    const roomNum = Number(booking.roomNumber) || 1;
     if (!booking.guestName.trim()) {
       setError("اكتب اسم الشخص اللي يريد الحجز.");
       return;
@@ -94,6 +95,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
     createBooking.mutate(
       {
         room: variant,
+        roomNumber: roomNum,
         guestName: booking.guestName.trim(),
         bookingDate: booking.date,
         startHour: start,
@@ -104,7 +106,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
         onSuccess: () => {
           setSuccess("تم تسجيل طلب الحجز وإرساله إلى إدارة Area 50. سيظهر الآن داخل لوحة الأدمن.");
           toast.success("تم إرسال الحجز إلى الإدارة");
-          setBooking({ guestName: "", date: "", startTime: "", endTime: "", guests: "" });
+          setBooking({ guestName: "", roomNumber: "1", date: "", startTime: "", endTime: "", guests: "" });
         },
         onError: (mutationError) => setError(mutationError.message || "تعذر تسجيل الطلب، حاول مرة ثانية."),
       },
@@ -115,6 +117,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
     <form className={`vip-booking-form vip-booking-form--${variant}`} onSubmit={submitBooking}>
       <div className="vip-form-heading"><span>{variant === "vip" ? "07 / VIP BOOKING" : "08 / VVIP BOOKING"}</span><strong>احجز غرفتك الخاصة.</strong></div>
       <label>اسم الشخص الحاجز<input type="text" required maxLength={120} placeholder="مثلاً: أحمد محمد" value={booking.guestName} onChange={(event) => setBooking({ ...booking, guestName: event.target.value })} /></label>
+      <label>اختيار رقم الغرفة (1 إلى 4)<select required value={booking.roomNumber} onChange={(event) => setBooking({ ...booking, roomNumber: event.target.value })}><option value="1">الغرفة رقم 1</option><option value="2">الغرفة رقم 2</option><option value="3">الغرفة رقم 3</option><option value="4">الغرفة رقم 4</option></select></label>
       <label>التاريخ<input type="date" required value={booking.date} onChange={(event) => setBooking({ ...booking, date: event.target.value })} /></label>
       <div className="vip-form-row vip-form-row--hours">
         <label>من الساعة<select required value={booking.startTime} onChange={(event) => setBooking({ ...booking, startTime: event.target.value })}><option value="">اختَر</option>{startOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>

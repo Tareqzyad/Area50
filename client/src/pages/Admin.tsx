@@ -125,6 +125,13 @@ export default function Admin() {
     },
     onError: error => toast.error(error.message),
   });
+  const deleteBooking = trpc.admin.bookings.delete.useMutation({
+    onSuccess: async () => {
+      await utils.admin.bookings.list.invalidate();
+      toast.success("تم إلغاء وحذف الحجز");
+    },
+    onError: error => toast.error(error.message),
+  });
   const updatePrice = trpc.admin.prices.update.useMutation({
     onSuccess: async () => {
       await Promise.all([utils.admin.prices.list.invalidate(), utils.prices.list.invalidate()]);
@@ -136,6 +143,13 @@ export default function Admin() {
     onSuccess: async () => {
       await utils.admin.store.orders.list.invalidate();
       toast.success("تم تحديث حالة طلب المتجر");
+    },
+    onError: error => toast.error(error.message),
+  });
+  const deleteStoreOrder = trpc.admin.store.orders.delete.useMutation({
+    onSuccess: async () => {
+      await utils.admin.store.orders.list.invalidate();
+      toast.success("تم إلغاء وحذف الطلب");
     },
     onError: error => toast.error(error.message),
   });
@@ -164,7 +178,7 @@ export default function Admin() {
   }
 
   return (
-    <AdminDashboard
+      <AdminDashboard
       bookings={bookings.data ?? []}
       prices={prices.data ?? []}
       categories={(categories.data ?? []) as Category[]}
@@ -173,16 +187,18 @@ export default function Admin() {
       onLogout={() => logout.mutate()}
       updatingStatus={updateStatus.isPending}
       onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+      onBookingDelete={(id) => deleteBooking.mutate({ id })}
       updatingPrice={updatePrice.isPending}
       onPriceSave={(room, pricePerHour) => updatePrice.mutate({ room, pricePerHour })}
       updatingOrderStatus={updateStoreOrderStatus.isPending}
       onOrderStatusChange={(id, status) => updateStoreOrderStatus.mutate({ id, status })}
+      onOrderDelete={(id) => deleteStoreOrder.mutate({ id })}
     />
   );
 }
 
 type AdminDashboardProps = {
-  bookings: Array<{ id: number; room: "vip" | "vvip"; guestName: string; bookingDate: string; startHour: number; endHour: number; guests: number; status: "pending" | "confirmed" | "cancelled"; createdAt: Date }>;
+  bookings: Array<{ id: number; room: "vip" | "vvip"; roomNumber: number; guestName: string; bookingDate: string; startHour: number; endHour: number; guests: number; status: "pending" | "confirmed" | "cancelled"; createdAt: Date }>;
   prices: Array<{ room: "vip" | "vvip"; pricePerHour: number; currency: string }>;
   categories: Category[];
   products: Product[];
@@ -190,13 +206,15 @@ type AdminDashboardProps = {
   onLogout: () => void;
   updatingStatus: boolean;
   onStatusChange: (id: number, status: "pending" | "confirmed" | "cancelled") => void;
+  onBookingDelete: (id: number) => void;
   updatingPrice: boolean;
   onPriceSave: (room: "vip" | "vvip", pricePerHour: number) => void;
   updatingOrderStatus: boolean;
   onOrderStatusChange: (id: number, status: StoreOrderStatus) => void;
+  onOrderDelete: (id: number) => void;
 };
 
-function AdminDashboard({ bookings, prices, categories, products, orders, onLogout, updatingStatus, onStatusChange, updatingPrice, onPriceSave, updatingOrderStatus, onOrderStatusChange }: AdminDashboardProps) {
+function AdminDashboard({ bookings, prices, categories, products, orders, onLogout, updatingStatus, onStatusChange, onBookingDelete, updatingPrice, onPriceSave, updatingOrderStatus, onOrderStatusChange, onOrderDelete }: AdminDashboardProps) {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     setPriceDrafts(Object.fromEntries(prices.map(price => [price.room, String(price.pricePerHour)])));
@@ -232,14 +250,14 @@ function AdminDashboard({ bookings, prices, categories, products, orders, onLogo
       </section>
 
       <StoreManagement categories={categories} products={products} />
-      <StoreOrdersManagement orders={orders} updating={updatingOrderStatus} onStatusChange={onOrderStatusChange} />
+      <StoreOrdersManagement orders={orders} updating={updatingOrderStatus} onStatusChange={onOrderStatusChange} onDeleteOrder={onOrderDelete} />
 
       <section className="admin-panel" aria-labelledby="bookings-title">
         <div className="admin-panel-heading"><div><span className="admin-eyebrow">03 / BOOKING INBOX</span><h2 id="bookings-title">طلبات الحجز</h2></div><button className="admin-refresh" onClick={() => window.location.reload()}><RefreshCw size={16} /> تحديث</button></div>
         {bookings.length === 0 ? <div className="admin-empty"><p>لا توجد حجوزات حتى الآن.</p><span>طلبات الزوار ستظهر هنا بعد إرسال نموذج VIP أو VVIP.</span></div> : <div className="admin-bookings-list">{bookings.map(booking => <article className={`admin-booking-row admin-booking-row--${booking.room}`} key={booking.id}>
-          <div className="admin-booking-room"><strong>{roomLabels[booking.room]}</strong><span>#{String(booking.id).padStart(4, "0")}</span></div>
+          <div className="admin-booking-room"><strong>{roomLabels[booking.room]} (غرفة {booking.roomNumber || 1})</strong><span>#{String(booking.id).padStart(4, "0")}</span></div>
           <div className="admin-booking-main"><h3>{booking.guestName}</h3><p>{formatBookingDate(booking.bookingDate)} · {booking.startHour}:00 — {booking.endHour}:00 · {booking.guests} أشخاص</p><small>أُرسل {formatCreatedAt(booking.createdAt)}</small></div>
-          <div className="admin-booking-actions"><span className={`admin-status admin-status--${booking.status}`}>{statusLabels[booking.status]}</span><div><button title="تأكيد" onClick={() => onStatusChange(booking.id, "confirmed")} disabled={updatingStatus}><Check size={16} /></button><button title="إلغاء" onClick={() => onStatusChange(booking.id, "cancelled")} disabled={updatingStatus}><X size={16} /></button></div></div>
+          <div className="admin-booking-actions"><span className={`admin-status admin-status--${booking.status}`}>{statusLabels[booking.status]}</span><div><button title="تأكيد" onClick={() => onStatusChange(booking.id, "confirmed")} disabled={updatingStatus}><Check size={16} /></button><button title="إلغاء وحذف" onClick={() => { if (window.confirm("إلغاء وحذف هذا الحجز نهائياً؟")) onBookingDelete(booking.id); }} disabled={updatingStatus}><Trash2 size={16} /></button></div></div>
         </article>)}</div>}
       </section>
     </main>
@@ -335,14 +353,14 @@ function StoreManagement({ categories, products }: { categories: Category[]; pro
   );
 }
 
-function StoreOrdersManagement({ orders, updating, onStatusChange }: { orders: StoreOrder[]; updating: boolean; onStatusChange: (id: number, status: StoreOrderStatus) => void }) {
+function StoreOrdersManagement({ orders, updating, onStatusChange, onDeleteOrder }: { orders: StoreOrder[]; updating: boolean; onStatusChange: (id: number, status: StoreOrderStatus) => void; onDeleteOrder: (id: number) => void }) {
   return (
     <section className="admin-panel admin-orders-panel" aria-labelledby="store-orders-title">
-      <div className="admin-panel-heading"><div><span className="admin-eyebrow">03 / STORE INBOX</span><h2 id="store-orders-title">طلبات المتجر</h2></div><div className="admin-orders-heading-meta"><span>{orders.length} طلب محفوظ</span><button className="admin-refresh" type="button" onClick={() => window.location.reload()}><RefreshCw size={15} /> تحديث</button></div></div>
+      <div className="admin-panel-heading"><div><span className="admin-eyebrow">04 / STORE INBOX</span><h2 id="store-orders-title">طلبات المتجر</h2></div><div className="admin-orders-heading-meta"><span>{orders.length} طلب محفوظ</span><button className="admin-refresh" type="button" onClick={() => window.location.reload()}><RefreshCw size={15} /> تحديث</button></div></div>
       {orders.length === 0 ? <div className="admin-empty"><p>لا توجد طلبات متجر حتى الآن.</p><span>طلبات الزبائن ستظهر هنا بعد إرسالها من السلة.</span></div> : <div className="admin-store-orders-list">{orders.map(order => <article className={`admin-store-order-row admin-store-order-row--${order.status}`} key={order.id}>
         <div className="admin-store-order-top"><div><strong>طلب #{String(order.id).padStart(4, "0")}</strong><small>{formatCreatedAt(order.createdAt)}</small></div><span className={`admin-status admin-status--${order.status}`}>{storeOrderStatusLabels[order.status]}</span></div>
         <div className="admin-store-order-grid"><div className="admin-store-order-customer"><h3>{order.customerName}</h3><p dir="ltr">{order.customerPhone}</p><p>{order.customerAddress}</p>{order.notes && <small>ملاحظة: {order.notes}</small>}</div><div className="admin-store-order-items">{order.items.map(item => <div key={item.id}><span>{item.productName} × {item.quantity}</span><strong>{(item.price * item.quantity).toLocaleString("ar-IQ")} {order.currency}</strong></div>)}<div className="admin-store-order-total"><span>الإجمالي</span><strong>{order.totalAmount.toLocaleString("ar-IQ")} {order.currency}</strong></div></div></div>
-        <div className="admin-store-order-actions"><label>تحديث الحالة<select value={order.status} onChange={event => onStatusChange(order.id, event.target.value as StoreOrderStatus)} disabled={updating}>{Object.entries(storeOrderStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>
+        <div className="admin-store-order-actions"><label>تحديث الحالة<select value={order.status} onChange={event => onStatusChange(order.id, event.target.value as StoreOrderStatus)} disabled={updating}>{Object.entries(storeOrderStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><button className="admin-delete-order-btn" type="button" title="إلغاء وحذف الطلب" onClick={() => { if (window.confirm("إلغاء وحذف هذا الطلب نهائياً؟")) onDeleteOrder(order.id); }}><Trash2 size={16} /> إلغاء وحذف</button></div>
       </article>)}</div>}
     </section>
   );

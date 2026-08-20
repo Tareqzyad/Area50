@@ -48393,6 +48393,7 @@ var users = mysqlTable("users", {
 var bookings = mysqlTable("bookings", {
   id: int2("id").autoincrement().primaryKey(),
   room: mysqlEnum("room", ["vip", "vvip"]).notNull(),
+  roomNumber: int2("roomNumber").default(1).notNull(),
   guestName: varchar("guestName", { length: 120 }).notNull(),
   bookingDate: varchar("bookingDate", { length: 10 }).notNull(),
   startHour: int2("startHour").notNull(),
@@ -48492,9 +48493,41 @@ async function getUserByOpenId(openId) {
 async function createBooking(data) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(bookings).values(data);
+  const roomNum = data.roomNumber || 1;
+  if (roomNum < 1 || roomNum > 4) {
+    throw new Error("\u0631\u0642\u0645 \u0627\u0644\u063A\u0631\u0641\u0629 \u064A\u062C\u0628 \u0623\u0646 \u064A\u0643\u0648\u0646 \u0628\u064A\u0646 1 \u0648 4");
+  }
+  const existing = await db.select().from(bookings).where(
+    and(
+      eq(bookings.room, data.room),
+      eq(bookings.roomNumber, roomNum),
+      eq(bookings.bookingDate, data.bookingDate),
+      sql`status != 'cancelled'`
+    )
+  );
+  for (const b of existing) {
+    if (data.startHour < b.endHour && data.endHour > b.startHour) {
+      throw new Error(`\u0627\u0644\u063A\u0631\u0641\u0629 \u0631\u0642\u0645 ${roomNum} \u0645\u062D\u062C\u0648\u0632\u0629 \u0628\u0627\u0644\u0641\u0639\u0644 \u0641\u064A \u0647\u0630\u0627 \u0627\u0644\u0648\u0642\u062A (${b.startHour}:00 - ${b.endHour}:00). \u064A\u0627\u062E\u062A\u0631 \u0648\u0642\u062A\u0627\u064B \u0623\u0648 \u063A\u0631\u0641\u0629 \u0623\u062E\u0631\u0649.`);
+    }
+  }
+  await db.insert(bookings).values({ ...data, roomNumber: roomNum });
   const result = await db.select().from(bookings).orderBy(desc(bookings.id)).limit(1);
   return result[0];
+}
+async function deleteBooking(id) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(bookings).where(eq(bookings.id, id));
+  return { success: true };
+}
+async function deleteStoreOrder(id) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (tx) => {
+    await tx.delete(storeOrderItems).where(eq(storeOrderItems.orderId, id));
+    await tx.delete(storeOrders).where(eq(storeOrders.id, id));
+  });
+  return { success: true };
 }
 async function listBookings() {
   const db = await getDb();
@@ -48805,6 +48838,7 @@ var appRouter = router({
     create: publicProcedure.input(
       external_exports.object({
         room: roomSchema,
+        roomNumber: external_exports.number().int().min(1).max(4).default(1),
         guestName: external_exports.string().trim().min(2).max(120),
         bookingDate: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         startHour: external_exports.number().int().min(0).max(23),
@@ -48814,7 +48848,14 @@ var appRouter = router({
         message: "Booking end time must be after start time",
         path: ["endHour"]
       })
-    ).mutation(({ input }) => createBooking({ ...input, status: "pending" }))
+    ).mutation(async ({ input }) => {
+      try {
+        return await createBooking({ ...input, status: "pending" });
+      } catch (error46) {
+        const msg = error46 instanceof Error ? error46.message : "\u062A\u0639\u0630\u0631 \u0625\u062A\u0645\u0627\u0645 \u0627\u0644\u062D\u062C\u0632";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+    })
   }),
   store: router({
     categories: router({
@@ -48858,7 +48899,8 @@ var appRouter = router({
     me: publicProcedure.query(({ ctx }) => ({ isAdmin: isAdminRequest(ctx.req) })),
     bookings: router({
       list: adminSessionProcedure.query(() => listBookings()),
-      updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: statusSchema })).mutation(({ input }) => updateBookingStatus(input.id, input.status))
+      updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: statusSchema })).mutation(({ input }) => updateBookingStatus(input.id, input.status)),
+      delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteBooking(input.id))
     }),
     prices: router({
       list: adminSessionProcedure.query(() => listRoomPrices()),
@@ -48879,7 +48921,8 @@ var appRouter = router({
       }),
       orders: router({
         list: adminSessionProcedure.query(() => getStoreOrdersList()),
-        updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: orderStatusSchema })).mutation(({ input }) => updateStoreOrderStatus(input.id, input.status))
+        updateStatus: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive(), status: orderStatusSchema })).mutation(({ input }) => updateStoreOrderStatus(input.id, input.status)),
+        delete: adminSessionProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => deleteStoreOrder(input.id))
       }),
       uploadImage: adminSessionProcedure.input(external_exports.object({ fileName: external_exports.string().trim().min(1).max(180), contentType: imageTypeSchema, base64: external_exports.string().min(1).max(7e6) })).mutation(async ({ input }) => {
         const rawBase64 = input.base64.replace(/^data:[^;]+;base64,/, "");

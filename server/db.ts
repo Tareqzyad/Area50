@@ -66,9 +66,49 @@ export async function getUserByOpenId(openId: string): Promise<User | null> {
 export async function createBooking(data: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(bookings).values(data);
+
+  const roomNum = data.roomNumber || 1;
+  if (roomNum < 1 || roomNum > 4) {
+    throw new Error("رقم الغرفة يجب أن يكون بين 1 و 4");
+  }
+
+  // Check for time overlap on the same room and date
+  const existing = await db.select().from(bookings).where(
+    and(
+      eq(bookings.room, data.room),
+      eq(bookings.roomNumber, roomNum),
+      eq(bookings.bookingDate, data.bookingDate),
+      sql`status != 'cancelled'`
+    )
+  );
+
+  for (const b of existing) {
+    // Overlap condition: startA < endB && endA > startB
+    if (data.startHour < b.endHour && data.endHour > b.startHour) {
+      throw new Error(`الغرفة رقم ${roomNum} محجوزة بالفعل في هذا الوقت (${b.startHour}:00 - ${b.endHour}:00). ياختر وقتاً أو غرفة أخرى.`);
+    }
+  }
+
+  await db.insert(bookings).values({ ...data, roomNumber: roomNum });
   const result = await db.select().from(bookings).orderBy(desc(bookings.id)).limit(1);
   return result[0];
+}
+
+export async function deleteBooking(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(bookings).where(eq(bookings.id, id));
+  return { success: true };
+}
+
+export async function deleteStoreOrder(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    await tx.delete(storeOrderItems).where(eq(storeOrderItems.orderId, id));
+    await tx.delete(storeOrders).where(eq(storeOrders.id, id));
+  });
+  return { success: true };
 }
 
 export async function listBookings() {

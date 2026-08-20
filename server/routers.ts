@@ -13,6 +13,8 @@ import {
 } from "./adminAuth";
 import {
   createBooking,
+  deleteBooking,
+  deleteStoreOrder,
   createStoreOrder,
   createStoreCategory,
   createStoreProduct,
@@ -83,6 +85,7 @@ export const appRouter = router({
       .input(
         z.object({
           room: roomSchema,
+          roomNumber: z.number().int().min(1).max(4).default(1),
           guestName: z.string().trim().min(2).max(120),
           bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           startHour: z.number().int().min(0).max(23),
@@ -93,7 +96,14 @@ export const appRouter = router({
           path: ["endHour"],
         }),
       )
-      .mutation(({ input }) => createBooking({ ...input, status: "pending" })),
+      .mutation(async ({ input }) => {
+        try {
+          return await createBooking({ ...input, status: "pending" });
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "تعذر إتمام الحجز";
+          throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+        }
+      }),
   }),
 
   store: router({
@@ -146,6 +156,9 @@ export const appRouter = router({
       updateStatus: adminSessionProcedure
         .input(z.object({ id: z.number().int().positive(), status: statusSchema }))
         .mutation(({ input }) => updateBookingStatus(input.id, input.status)),
+      delete: adminSessionProcedure
+        .input(z.object({ id: z.number().int().positive() }))
+        .mutation(({ input }) => deleteBooking(input.id)),
     }),
     prices: router({
       list: adminSessionProcedure.query(() => listRoomPrices()),
@@ -179,6 +192,9 @@ export const appRouter = router({
         updateStatus: adminSessionProcedure
           .input(z.object({ id: z.number().int().positive(), status: orderStatusSchema }))
           .mutation(({ input }) => updateStoreOrderStatus(input.id, input.status)),
+        delete: adminSessionProcedure
+          .input(z.object({ id: z.number().int().positive() }))
+          .mutation(({ input }) => deleteStoreOrder(input.id)),
       }),
       uploadImage: adminSessionProcedure
         .input(z.object({ fileName: z.string().trim().min(1).max(180), contentType: imageTypeSchema, base64: z.string().min(1).max(7_000_000) }))

@@ -16,6 +16,7 @@ export const users = mysqlTable("users", {
 export const bookings = mysqlTable("bookings", {
   id: int("id").autoincrement().primaryKey(),
   room: mysqlEnum("room", ["vip", "vvip"]).notNull(),
+  roomNumber: int("roomNumber").default(1).notNull(),
   guestName: varchar("guestName", { length: 120 }).notNull(),
   bookingDate: varchar("bookingDate", { length: 10 }).notNull(),
   startHour: int("startHour").notNull(),

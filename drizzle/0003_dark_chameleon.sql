@@ -1,0 +1,1 @@
+ALTER TABLE `bookings` ADD `roomNumber` int DEFAULT 1 NOT NULL;
