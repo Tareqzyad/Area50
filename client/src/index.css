@@ -188,8 +188,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .service-row__index { color: var(--area-violet); font: 700 13px "Rajdhani", sans-serif; letter-spacing: .1em; }
 .service-row__icon { color: var(--area-lime); }
 .service-row > div:not(.service-row__shape) { direction: rtl; text-align: right; }
-.service-row h3 { margin: 0; color: var(--area-ink); font: 700 23px/1.2 "Rajdhani", "Noto Kufi Arabic", sans-serif; letter-spacing: .03em; }
-.service-row p { margin: 8px 0 0; color: var(--area-muted); font-size: 11px; line-height: 1.8; }
+.service-row h3 { margin: 4px 0 0; color: var(--area-ink); font: 700 23px/1.2 "Rajdhani", "Noto Kufi Arabic", sans-serif; letter-spacing: .03em; }
+.service-row__tag { display: block; color: var(--area-lime); font: 600 9px/1 "Rajdhani", sans-serif; letter-spacing: .16em; }
+.area-page--center .service-row:nth-child(7) { background: linear-gradient(90deg, rgba(158,99,220,.1), transparent 55%); }
+.area-page--center .service-row:nth-child(7) .service-row__index { color: var(--area-lime); }
+.area-page--center .service-row:nth-child(7) .service-row__tag { color: var(--area-violet); }
+.service-row p { margin: 7px 0 0; color: var(--area-muted); font-size: 11px; line-height: 1.8; }
 .service-row__arrow { color: var(--area-muted); transition: color .2s, transform .2s; }
 .service-row:hover .service-row__arrow { color: var(--area-lime); transform: translateX(-4px); }
 .service-list--store .service-row:hover { background: rgba(84,217,208,.07); }
