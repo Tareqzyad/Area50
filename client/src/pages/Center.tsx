@@ -8,7 +8,7 @@ import {
   Crown,
   Gamepad2,
   MapPin,
-  MessageCircle,
+  ClipboardCheck,
   Monitor,
   Phone,
   Sparkles,
@@ -22,7 +22,6 @@ import { trpc } from "@/lib/trpc";
 
 const CENTER_IMAGE = "/manus-storage/area50-center-hero_de9fad3b.jpg";
 const MARK_IMAGE = "/manus-storage/area50-mark_6c38c50c.png";
-const WHATSAPP_NUMBER = "9647729220544";
 
 const bookingHours = [
   { value: "12", label: "12:00 PM" },
@@ -103,18 +102,9 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
       },
       {
         onSuccess: () => {
-          const startLabel = bookingHours.find((option) => option.value === booking.startTime)?.label ?? booking.startTime;
-          const endLabel = bookingHours.find((option) => option.value === booking.endTime)?.label ?? booking.endTime;
-          const details = [
-            `مرحباً Area 50، أريد حجز ${room}.`,
-            `اسم الحاجز: ${booking.guestName.trim()}`,
-            `التاريخ: ${booking.date}`,
-            `الوقت: من ${startLabel} إلى ${endLabel}`,
-            `عدد الأشخاص: ${booking.guests}`,
-          ].join("\n");
-          setSuccess("وصل طلبك إلى الإدارة، افتح واتساب لإكمال التأكيد.");
-          toast.success("تم تسجيل طلب الحجز");
-          window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(details)}`, "_blank", "noopener,noreferrer");
+          setSuccess("تم تسجيل طلب الحجز وإرساله إلى إدارة Area 50. سيظهر الآن داخل لوحة الأدمن.");
+          toast.success("تم إرسال الحجز إلى الإدارة");
+          setBooking({ guestName: "", date: "", startTime: "", endTime: "", guests: "" });
         },
         onError: (mutationError) => setError(mutationError.message || "تعذر تسجيل الطلب، حاول مرة ثانية."),
       },
@@ -134,7 +124,7 @@ function BookingForm({ room, variant, price }: BookingFormProps) {
       <div className="vip-price-note">{price && price.pricePerHour > 0 ? `${price.pricePerHour.toLocaleString()} ${price.currency} / ساعة` : "السعر يحدده الإدارة"}</div>
       {error && <p className="vip-booking-error" role="alert">{error}</p>}
       {success && <p className="vip-booking-success" role="status">{success}</p>}
-      <button type="submit" className="vip-booking-submit" disabled={createBooking.isPending}><MessageCircle size={18} /> {createBooking.isPending ? "جارٍ تسجيل الطلب..." : "أرسل طلب الحجز"} <ArrowLeft size={18} /></button>
+      <button type="submit" className="vip-booking-submit" disabled={createBooking.isPending}><ClipboardCheck size={18} /> {createBooking.isPending ? "جارٍ إرسال الحجز للإدارة..." : "أرسل الحجز للإدارة"} <ArrowLeft size={18} /></button>
       <a className="vip-call-link" href="tel:07729220544"><Phone size={15} /> أو اتصل مباشرةً: 07729220544</a>
     </form>
   );
