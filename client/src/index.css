@@ -376,3 +376,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .center-vip__intro h2 { font-size: 56px; }
   .vip-form-row { display: block; }
 }
+
+/* VVIP distinction: the final room gets a cooler premium finish and its own booking action. */
+.center-vvip { background: linear-gradient(115deg, rgba(84,217,208,.18), rgba(13,37,45,.78) 40%, rgba(16,18,25,.98) 100%); border-color: rgba(84,217,208,.72); border-right-color: var(--area-aqua); }
+.center-vvip::before { content: "VVIP"; color: rgba(84,217,208,.1); }
+.center-vvip .center-vip__intro h2 em { color: var(--area-aqua); }
+.center-vvip .vip-booking-submit { background: var(--area-aqua); }
+.center-vvip .vip-booking-submit:hover { background: #8ef3eb; }
+.center-vvip .vip-call-link svg { color: var(--area-aqua); }
+@media (max-width: 800px) {
+  .center-vvip::before { font-size: 150px; }
+}

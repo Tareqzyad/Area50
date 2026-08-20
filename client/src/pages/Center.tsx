@@ -14,6 +14,7 @@ const services = [
   { index: "04", title: "PING PONG", label: "TABLE TWO", detail: "نقطة بنقطة، حركة أسرع، وضحكة تطلع من كل جولة.", icon: Table2, tone: "pink", meta: "FAST / FUN" },
   { index: "05", title: "STEERING WHEEL", label: "RACE DECK", detail: "ثبت الحزام، اختَر مسارك، وخلي السباق يبدأ من أول لفة.", icon: CarFront, tone: "yellow", meta: "RACE / START" },
   { index: "06", title: "SEASONAL TOURNAMENTS", label: "AREA 50 EVENTS", detail: "بطولات موسمية، جدول واضح، ومنافسة تجمع لاعبي المدينة.", icon: Trophy, tone: "violet", meta: "BRACKET / LIVE" },
+  { index: "07", title: "VIP ROOM", label: "PRIVATE / VIP", detail: "غرفة خاصة للجلسات الهادئة، الفرق الصغيرة، والمناسبات المميزة.", icon: Crown, tone: "violet", meta: "ROOM / PRIVATE" },
 ];
 
 function CenterHeader() {
@@ -32,7 +33,7 @@ function BookingForm() {
   function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const details = [
-      "مرحباً Area 50، أريد حجز VIP Room.",
+      "مرحباً Area 50، أريد حجز VVIP Room.",
       booking.date ? `التاريخ: ${booking.date}` : "التاريخ: يحدد لاحقاً",
       booking.time ? `الوقت: ${booking.time}` : "الوقت: يحدد لاحقاً",
       booking.guests ? `عدد الأشخاص: ${booking.guests}` : "عدد الأشخاص: يحدد لاحقاً",
@@ -42,7 +43,7 @@ function BookingForm() {
 
   return (
     <form className="vip-booking-form" onSubmit={submitBooking}>
-      <div className="vip-form-heading"><span>02 / BOOKING</span><strong>خلّ الحجز علينا.</strong></div>
+      <div className="vip-form-heading"><span>02 / VVIP BOOKING</span><strong>احجز غرفتك الخاصة.</strong></div>
       <label>التاريخ<input type="date" value={booking.date} onChange={(event) => setBooking({ ...booking, date: event.target.value })} /></label>
       <div className="vip-form-row">
         <label>الوقت<input type="time" value={booking.time} onChange={(event) => setBooking({ ...booking, time: event.target.value })} /></label>
@@ -99,12 +100,12 @@ export default function Center() {
           </div>
         </section>
 
-        <section className="center-vip" id="vip-room" aria-labelledby="vip-title">
+        <section className="center-vip center-vvip" id="vvip-room" aria-labelledby="vip-title">
           <div className="center-vip__intro">
-            <div className="center-vip__mark"><Crown size={26} /><span>07 / PRIVATE MODE</span></div>
-            <span className="center-kicker">THE LAST ROOM / VIP</span>
-            <h2 id="vip-title">غرفتك.<br /><em>قوانينك.</em></h2>
-            <p>لما تريد الجلسة تكون خاصة، VIP Room تنتظرك. مساحة أهدأ، وقتك أنت، وتجربة تنحجز قبل ما توصل.</p>
+            <div className="center-vip__mark"><Crown size={26} /><span>08 / PRIVATE MODE</span></div>
+            <span className="center-kicker">THE LAST ROOM / VVIP</span>
+            <h2 id="vip-title">VVIP<br /><em>Room.</em></h2>
+            <p>آخر مستوى من الخصوصية داخل Area 50. غرفة أهدأ، مساحة أوسع، وتجربة تنحجز قبل ما توصل.</p>
             <div className="center-vip__notes"><span><Sparkles size={15} /> أجواء خاصة</span><span><Users size={15} /> للفرق والمناسبات</span></div>
           </div>
           <BookingForm />
